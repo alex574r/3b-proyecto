@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
 
 object Estado {
     const val PENDIENTE = "PENDIENTE" // guardada, aún sin respuesta del servidor (sin red, timeout o servidor caído)
-    const val ENVIADA = "ENVIADA"     // el servidor ya respondió; resultadoJson tiene el JSON oficial
+    const val ENVIADA = "ENVIADA"     // el servidor ya respondió; resultadoJson tiene el registro de respuesta (o el JSON oficial, en versiones anteriores)
     const val ERROR = "ERROR"         // el servidor la rechazó (4xx) o se agotaron los intentos; solo se reintenta a mano
 }
 

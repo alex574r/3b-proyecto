@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -118,6 +120,8 @@ fun CapturaItem(c: Captura, expandida: Boolean, enviando: Boolean, onToggle: () 
         c.decision == "rechazada" -> Triple(Icons.Default.Close, colores.error, "Rechazada")
         else -> Triple(Icons.Default.Warning, colores.tertiary, "Revisión manual")
     }
+    val respuesta = remember(c.resultadoJson) { c.resultadoJson?.let { runCatching { JSONObject(it) }.getOrNull() } }
+    val oferta = respuesta?.num("precio_descuento")
     Card(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -129,6 +133,9 @@ fun CapturaItem(c: Captura, expandida: Boolean, enviando: Boolean, onToggle: () 
                         Icon(icono, contentDescription = estado, tint = color, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(estado + (c.motivo?.let { " · $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                    }
+                    oferta?.let {
+                        Text("Oferta ${pesos(it)}", color = colores.primary, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -149,6 +156,7 @@ fun CapturaItem(c: Captura, expandida: Boolean, enviando: Boolean, onToggle: () 
                     Text("Intentos: ${c.intentos}", style = MaterialTheme.typography.bodySmall)
                     c.error?.let { Text("Último error: $it", color = colores.error, style = MaterialTheme.typography.bodySmall) }
                 }
+                respuesta?.let { ResultadoCard(it) }
                 c.resultadoJson?.let {
                     Text("JSON de respuesta", style = MaterialTheme.typography.titleSmall)
                     SelectionContainer { Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }

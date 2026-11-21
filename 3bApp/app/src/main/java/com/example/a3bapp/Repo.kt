@@ -132,7 +132,8 @@ object CapturaRepo {
                     tienda = r.str("capture_store_name"), barcode = r.str("capture_barcode"), precio = r.str("capture_price"),
                     marca = r.str("capture_brand"), nombre = r.str("product_name"),
                     contenido = r.str("unit_quantity_product"), unidad = r.str("unit_product"),
-                    decision = r.getString("decision_esperada"), motivo = r.getString("reason_code"),
+                    // motivo para la lista del historial: el texto del analista si se rechazó, si no el código del motor
+                    decision = r.getString("decision_esperada"), motivo = r.str("motivo_rechazo").ifBlank { r.getString("reason_code") },
                     resultadoJson = r.toString(2).replace("\\/", "/"), // org.json escapa "/"; el JSON sigue siendo válido
                 ),
             )

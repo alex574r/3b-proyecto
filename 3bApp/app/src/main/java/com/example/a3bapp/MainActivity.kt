@@ -70,6 +70,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.a3bapp.ui.theme._3bAppTheme
@@ -78,6 +79,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.Locale
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -182,12 +184,20 @@ fun FotoSlot(label: String, uri: Uri?, modifier: Modifier = Modifier, onPick: (U
     }
 }
 
+/** Número del JSON o null (ausente, null o no numérico): el historial guarda respuestas de versiones anteriores sin estos campos. */
+fun JSONObject.num(key: String): Double? = if (isNull(key)) null else optDouble(key).takeUnless { it.isNaN() }
+
+fun pesos(v: Double) = String.format(Locale.US, "$%.2f", v)
+
+/**
+ * Respuesta del servidor: registro con la forma de capturas.json (decision_esperada, motivo_rechazo, datos del SKU) más el detalle del
+ * motor. También muestra el JSON oficial que guardaron versiones anteriores de la app (decision, sin datos del SKU).
+ */
 @Composable
 fun ResultadoCard(r: JSONObject) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // registro nuevo (decision_esperada) o JSON oficial guardado en el historial por versiones anteriores (decision)
-            val decision = r.optString("decision_esperada").ifEmpty { r.getString("decision") }
+            val decision = r.str("decision_esperada").ifEmpty { r.str("decision") }
             val (icon, tint) = when (decision) {
                 "aprobada" -> Icons.Default.CheckCircle to MaterialTheme.colorScheme.primary
                 "rechazada" -> Icons.Default.Close to MaterialTheme.colorScheme.error
@@ -197,10 +207,35 @@ fun ResultadoCard(r: JSONObject) {
                 Icon(icon, contentDescription = decision, tint = tint)
                 Text(decision.replace('_', ' ').uppercase(), style = MaterialTheme.typography.titleLarge)
             }
-            Text("Confianza ${r.getDouble("confidence_score")} · ${r.getString("reason_code")}")
-            val v = r.getJSONObject("validaciones")
-            v.keys().forEach { Text("$it: ${v.getString(it)}") }
-            Text(r.getString("explicacion"))
+            r.str("motivo_rechazo").takeIf { it.isNotBlank() }?.let {
+                Text("Motivo: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall)
+            }
+
+            // Precios: el de la etiqueta y, si hay promoción para este producto, el de oferta por pieza
+            val etiqueta = r.num("precio_detectado")
+            val oferta = r.num("precio_descuento")
+            etiqueta?.let { Text("Precio en etiqueta: ${pesos(it)}") }
+            oferta?.let {
+                Text("Precio de oferta: ${pesos(it)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+
+            // Producto en el catálogo (solo si el código de barras está en él)
+            r.num("id_product")?.let { sku ->
+                val ref = r.num("product_price")
+                val min = r.num("min_product_price")
+                val max = r.num("max_product_price")
+                Text(
+                    "SKU ${sku.toLong()}" + (ref?.let { " · Referencia ${pesos(it)}" } ?: "") +
+                        (if (min != null && max != null) " (rango ${pesos(min)}–${pesos(max)})" else ""),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                listOf(r.str("product_group"), r.str("product_line")).filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+                    ?.let { Text(it.joinToString(" · "), style = MaterialTheme.typography.bodySmall) }
+            }
+
+            Text("Confianza ${r.optDouble("confidence_score", 0.0)} · ${r.str("reason_code")}", style = MaterialTheme.typography.bodySmall)
+            r.optJSONObject("validaciones")?.let { v -> v.keys().forEach { Text("$it: ${v.optString(it)}", style = MaterialTheme.typography.bodySmall) } }
+            Text(r.str("explicacion"))
         }
     }
 }
