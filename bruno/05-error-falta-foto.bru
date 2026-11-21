@@ -1,0 +1,33 @@
+meta {
+  name: 05 Error 400 falta una foto
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/validar
+  body: json
+  auth: none
+}
+
+headers {
+  X-Api-Key: {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "capture_store_name": "Soriana",
+    "facade_b64": "{{facade_b64}}",
+    "product_b64": "{{product_b64}}"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.error: contains shelf_b64
+}
+
+docs {
+  Falta shelf_b64: 400 con {"error": "falta shelf_b64"}. No gasta tokens.
+}

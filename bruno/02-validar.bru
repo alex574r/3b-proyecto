@@ -1,0 +1,57 @@
+meta {
+  name: 02 Validar captura (fotos de ejemplo)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/validar
+  body: json
+  auth: none
+}
+
+headers {
+  X-Api-Key: {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "capture_id": "BRUNO-001",
+    "capture_store_name": "Soriana",
+    "capture_price": 14.0,
+    "capture_barcode": "7501000000000",
+    "capture_brand": "Cat-tit",
+    "product_name": "Arena para gato",
+    "unit_product": "gramo",
+    "unit_quantity_product": 2000,
+    "facade_b64": "{{facade_b64}}",
+    "product_b64": "{{product_b64}}",
+    "shelf_b64": "{{shelf_b64}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.capture_id: eq BRUNO-001
+  res.body.decision: isString
+  res.body.reason_code: isString
+}
+
+tests {
+  test("decision es una de las tres permitidas", function () {
+    expect(["aprobada", "rechazada", "revision_manual"]).to.include(res.body.decision);
+  });
+  test("validaciones trae las 4 claves", function () {
+    expect(res.body.validaciones).to.have.all.keys("tienda_fachada", "producto", "codigo_barras", "evidencia_precio");
+  });
+  test("confidence_score entre 0 y 1", function () {
+    expect(res.body.confidence_score).to.be.within(0, 1);
+  });
+}
+
+docs {
+  Las fotos del entorno son una imagen blanca de 32x32 (marcador de posición): el motor responderá `revision_manual`.
+  Para fotos reales usa `03 Validar con fotos de archivo`.
+  Gasta tokens de Foundry si el servidor corre con Haiku.
+}

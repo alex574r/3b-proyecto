@@ -1,0 +1,57 @@
+meta {
+  name: 03 Validar con fotos de archivo
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/validar
+  body: json
+  auth: none
+}
+
+headers {
+  X-Api-Key: {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+script:pre-request {
+  // Requiere Developer Mode en Bruno (Preferences > Security) para poder usar `fs`.
+  // Coloca fachada.jpg, producto.jpg y etiqueta.jpg en la carpeta indicada por la variable photosDir.
+  const fs = require('fs');
+  const dir = bru.getEnvVar('photosDir');
+  const b64 = (name) => fs.readFileSync(`${dir}/${name}`).toString('base64');
+  req.setBody({
+    capture_id: 'BRUNO-ARCHIVOS-' + Date.now(),
+    capture_store_name: 'Soriana',
+    capture_price: 14.0,
+    capture_brand: 'Cat-tit',
+    product_name: 'Arena para gato',
+    unit_product: 'gramo',
+    unit_quantity_product: 2000,
+    facade_b64: b64('fachada.jpg'),
+    product_b64: b64('producto.jpg'),
+    shelf_b64: b64('etiqueta.jpg')
+  });
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("devuelve el JSON oficial", function () {
+    expect(res.body).to.have.all.keys(
+      "capture_id", "decision", "confidence_score", "reason_code", "validaciones",
+      "precio_detectado", "codigo_barras_detectado", "explicacion"
+    );
+  });
+}
+
+docs {
+  No uses las fotos del set de 3B: pasan por la red de Cloudflare y las reglas del reto piden mantenerlas dentro del equipo.
+}

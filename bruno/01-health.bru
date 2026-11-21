@@ -1,0 +1,20 @@
+meta {
+  name: 01 Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}
+
+docs {
+  Sin token. `llm: true` indica que el servidor llama a Haiku; `false` = modo --no-llm.
+}
