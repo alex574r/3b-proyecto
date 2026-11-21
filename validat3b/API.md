@@ -3,6 +3,38 @@
 Base: `https://api.jamp.digital` (túnel de Cloudflare → `server.py` en el PC). Solo responde si el PC está
 encendido y `iniciar_publico.ps1` corriendo.
 
+## Cómo funciona (Cloudflare)
+El PC no abre ningún puerto: `cloudflared` marca hacia Cloudflare (conexiones salientes) y Cloudflare le entrega por ese túnel
+lo que llega a `api.jamp.digital`. El servidor solo escucha en `127.0.0.1:8000`; la llave de Foundry nunca sale de él.
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente<br/>(app Android / Bruno)
+    participant CF as Cloudflare<br/>api.jamp.digital
+    participant T as cloudflared<br/>(PC)
+    participant S as server.py<br/>127.0.0.1:8000
+    participant F as Azure AI Foundry<br/>(Haiku)
+
+    Note over T,CF: Al arrancar iniciar_publico.ps1, el túnel validat3b<br/>se conecta de forma saliente (sin abrir puertos)
+    T->>CF: conexiones del túnel (QUIC / HTTP2)
+
+    C->>CF: HTTPS POST /analizar o /validar<br/>(X-Api-Key o JWT + 3 fotos en base64)
+    Note over CF: Termina TLS, corta a los 100 s
+    CF->>T: por el túnel
+    T->>S: HTTP local
+    S->>S: credencial y cuerpo válidos<br/>(si no: 401 / 400 / 411 / 413)
+    S->>S: chequeos locales<br/>(nitidez, código de barras)
+    S->>F: 1 llamada a Haiku (FOUNDRY_API_KEY)
+    F-->>S: criterios en JSON
+    S->>S: reglas → decisión
+    S-->>T: 200 JSON oficial
+    T-->>CF: respuesta
+    CF-->>C: 200 JSON oficial
+```
+
+Si el PC se apaga o `iniciar_publico.ps1` se cierra, Cloudflare sigue respondiendo pero sin origen (502): la app guarda la captura como
+*pendiente* y la reenvía cuando la API vuelve. `GET /health` solo recorre cliente → Cloudflare → túnel → `server.py`; no llama a Foundry.
+
 ## Autenticación
 Todas las peticiones `POST` y `GET /imagenes/...` llevan una de estas dos credenciales (los valores están en `validat3b\.env`):
 - `X-Api-Key: <VALIDAT3B_TOKEN>` (token fijo; lo usa Bruno), o
