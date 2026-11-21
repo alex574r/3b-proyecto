@@ -7,6 +7,8 @@ Guarda un JSON por captura (<salida>/<ID>.json, el mismo registro que devuelve l
 import json
 import re
 import threading
+import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -59,6 +61,28 @@ def analizar_captura(cid, paths, carpeta, salida, client, catalog, reutilizar=Tr
     registro = auto.registro(datos, res, fotos)
     out.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
     return registro
+
+
+def exportar(registros, destino, carpeta, usa_llm):
+    """Un solo JSON con toda la información del análisis: datos de la corrida, resumen por decisión y motivo, y el
+    registro completo de cada captura (el mismo que devuelve la API). -> el dict escrito en `destino`."""
+    registros = sorted(registros, key=lambda r: r["capture_id"])
+    datos = {
+        "carpeta": str(carpeta),
+        "generado": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "usa_haiku": bool(usa_llm),
+        "total": len(registros),
+        "resumen": {
+            "por_decision": dict(Counter(r["decision_esperada"] for r in registros)),
+            "por_motivo": dict(Counter(r["motivo_rechazo"] or r["reason_code"] for r in registros if r["decision_esperada"] != "aprobada")),
+            "por_tienda": dict(Counter(r["capture_store_name"] or "(sin dato)" for r in registros)),
+        },
+        "capturas": registros,
+    }
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
+    return datos
 
 
 def analizar_carpeta(carpeta, salida, client, catalog, workers=2, reutilizar=True, on_result=None, stop=None):

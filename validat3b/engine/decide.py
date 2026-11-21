@@ -22,6 +22,13 @@ ALLOW_APPROVE = False
 # por gramaje o variante que 3B acepta, y el catálogo no trae contratipos permitidos). Van a revisión manual.
 # Reactivar con las reglas oficiales y la lista de contratipos.
 REJECT_IDENTITY = False
+# Aprobación por datos completos (solo si quien llama pasa `datos`: API, app y ventana; run.py no, porque genera el
+# archivo oficial del set ciego): se aprueba si todos los CAMPOS_COMPLETOS vienen rellenos, los 7 criterios de Haiku
+# están en "ok" y la nitidez medida pasa el corte. En dev: 27 aprobadas con 78 % de precisión (sin los 7 criterios
+# eran 49 con 61 %); sigue por debajo del 97 % que exige el reto.
+APPROVE_POR_DATOS = True
+CAMPOS_COMPLETOS = ("capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price",
+                    "capture_brand", "product_name")
 APPROVE_CONF = 0.97
 FIRM_CONF = 0.90
 MANUAL_CONF = 0.50
@@ -70,7 +77,11 @@ def _discount(vision, cap, precio):
     return float(d), ""
 
 
-def decide(cap, local, vision):
+def datos_completos(datos):
+    return datos is not None and all(datos.get(k) not in (None, "") for k in CAMPOS_COMPLETOS)
+
+
+def decide(cap, local, vision, datos=None):
     cid = cap["capture_id"]
     bc_val, bc_found = _barcode_check(cap, local)
     val = {"tienda_fachada": "no_evaluable", "producto": "no_evaluable",
@@ -117,6 +128,12 @@ def decide(cap, local, vision):
     for hit, code, why in firm:
         if hit:
             return output.make(cid, "rechazada", FIRM_CONF, code, val, precio, bc_found, motivo or why, desc)
+
+    # --- aprobar por datos completos: los 7 campos rellenos y fotos nítidas y cercanas (los rechazos firmes ya salieron) ---
+    if (APPROVE_POR_DATOS and datos_completos(datos) and all(crit[k] == "ok" for k in CRITERIOS)
+            and min_blur >= APPROVE_BLUR_MIN):
+        return output.make(cid, "aprobada", APPROVE_CONF, "APROBADA", val, precio, bc_found,
+                           "Datos completos (id, tienda, fecha, código, precio, marca y producto) y los 7 criterios de las fotos en orden.", desc)
 
     # --- aprobar solo si todo está en verde ---
     all_ok = all(crit[k] == "ok" for k in CRITERIOS)

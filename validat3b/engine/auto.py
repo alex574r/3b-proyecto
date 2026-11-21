@@ -8,7 +8,7 @@ import re
 import time
 from pathlib import Path
 
-from . import decide
+from . import catalogo, decide
 
 CODE_LENS = (8, 12, 13, 14)  # EAN-8, UPC-A, EAN-13, ITF-14
 
@@ -46,7 +46,11 @@ def detectar(cap, barcodes, vis, catalog):
     # Las fotos suelen traer varios códigos (caja, etiqueta, empaque): se prefiere el que está en el catálogo
     cands = [c for c in (*map(_code, barcodes), _code(d.get("codigo_barras"))) if c]
     code = cap.get("capture_barcode") or next((c for c in cands if c.lstrip("0") in catalog), cands[0] if cands else None)
-    cat = (catalog.get(code.lstrip("0")) if code else None) or {}
+    # id_product (si el cliente lo manda) > código de barras > nombre + contenido (solo coincidencias claras)
+    cat, fuente_cat = catalogo.buscar(catalog, cap.get("id_product"), code, cap.get("product_name") or d.get("producto"),
+                                      cap.get("unit_quantity_product") or _num(d.get("contenido")),
+                                      cap.get("unit_product") or d.get("unidad"))
+    cat = cat or {}
     date = cap.get("capture_date")
     return {
         "capture_id": cap["capture_id"],
@@ -68,6 +72,7 @@ def detectar(cap, barcodes, vis, catalog):
         "precio_descuento": None,  # se llena con el valor ya validado por decide
         "fuente_producto": ("usuario" if cap.get("product_name") else "catalogo" if cat
                             else "foto" if d.get("producto") else None),
+        "fuente_catalogo": fuente_cat,  # id_product | codigo_barras | nombre | None (no se encontró en el catálogo)
     }
 
 
@@ -83,7 +88,7 @@ def completar(cap, local, vis, catalog):
     # y uno escrito por el usuario que no se pudo decodificar queda "no_evaluable".
     if code and code.lstrip("0") not in {_digits(c).lstrip("0") for c in local["barcodes"]}:
         local = dict(local, barcodes=[] if cap.get("capture_barcode") else [code])
-    res = decide.decide(full, local, vis or None)
+    res = decide.decide(full, local, vis or None, datos)
     datos["precio_descuento"] = res["precio_descuento"]
     return res, datos
 
@@ -123,6 +128,7 @@ def registro(datos, res, fotos):
     r["motivo_rechazo"] = MOTIVOS.get(res["reason_code"], res["reason_code"]) if res["decision"] == "rechazada" else ""
     r.update({k: res[k] for k in OFICIAL})
     r["fuente_producto"] = datos.get("fuente_producto")
+    r["fuente_catalogo"] = datos.get("fuente_catalogo")
     return r
 
 

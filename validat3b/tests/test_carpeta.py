@@ -61,6 +61,16 @@ def main():
     r = carpeta.analizar_captura("CAP-2", capturas["CAP-2"], base, salida, None, {}, reutilizar=False)
     assert r["reason_code"] == "ERROR_PROCESAMIENTO" and output.validate(auto.oficial(r)) == []
 
+    # exportar: un solo JSON con datos de la corrida, resumen y todos los registros completos (ordenados por id)
+    destino = base / "export" / "todo.json"
+    ex = carpeta.exportar(regs[::-1], destino, base, usa_llm=False)
+    assert json.loads(destino.read_text(encoding="utf-8")) == ex
+    assert ex["total"] == 2 and ex["usa_haiku"] is False and ex["carpeta"] == str(base) and len(ex["generado"]) == 19
+    assert ex["resumen"]["por_decision"] == {"revision_manual": 2} and ex["resumen"]["por_motivo"] == {"SIN_ANALISIS_VISUAL": 2}
+    assert ex["resumen"]["por_tienda"] == {"(sin dato)": 2}
+    assert [c["capture_id"] for c in ex["capturas"]] == ["CAP-1", "CAP-2"] and ex["capturas"][0] == regs[0]
+    assert carpeta.exportar([], base / "vacio.json", base, True)["total"] == 0
+
     # detener: no se empiezan capturas nuevas
     stop = threading.Event()
     stop.set()
@@ -93,6 +103,13 @@ def gui_humo(base):
     assert v[0] == "CAP-1" and v[1] == "revision_manual" and v[2] == "SIN_ANALISIS_VISUAL", v
     assert (gui.SALIDA / base.name / "CAP-1.json").exists() and (gui.SALIDA / base.name / "resultados.json").exists()
     assert "Listo" in app.estado.get() and "revision manual 2" in app.estado.get(), app.estado.get()
+    # exportar: el botón se habilita al terminar y el JSON trae las 2 capturas
+    assert "disabled" not in app.btn_exportar.state()
+    destino = base / "export_gui.json"
+    assert app.exportar(str(destino)) == str(destino)
+    ex = json.loads(destino.read_text(encoding="utf-8"))
+    assert ex["total"] == 2 and [c["capture_id"] for c in ex["capturas"]] == ["CAP-1", "CAP-2"] and ex["carpeta"] == str(base)
+    assert "Exportado" in app.estado.get()
     app.destroy()
 
 

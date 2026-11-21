@@ -83,8 +83,12 @@ Las 24 primeras llaves (hasta `motivo_rechazo`) son las de `capturas.json`:
   el que llegó la petición. Si las fotos no se pudieron guardar, van en `null`. Cada registro devuelto también se guarda en
   `validat3b/salida_api/json/<capture_id>.json`.
 - `decision_esperada`: la decisión del motor, `aprobada` | `rechazada` | `revision_manual` (el nombre de la llave es el de
-  `capturas.json`). **Hoy el motor no aprueba** (`ALLOW_APPROVE = False`): las capturas que se verían bien salen
-  `revision_manual` con `CANDIDATA_APROBACION`.
+  `capturas.json`). **Se aprueba por datos completos** (`APPROVE_POR_DATOS`): si `capture_id`, `capture_store_name`,
+  `capture_date`, `capture_barcode`, `capture_price`, `capture_brand` y `product_name` vienen rellenos y las fotos no salen
+  borrosas ni lejanas, Haiku marca los 7 criterios (fachada, pantalla, nitidez, cercanía, producto, etiqueta y precio) en `ok` y la
+  nitidez medida ≥ 180. No compara el precio capturado con la etiqueta. En las 100 capturas de dev aprobó 27 con 78 % de precisión. Solo
+  aplica a la API, la app y la ventana; `run.py` (archivo oficial del set ciego) no la usa. Lo que no cumple va a
+  `revision_manual`; el criterio estricto anterior (`ALLOW_APPROVE = False`) deja `CANDIDATA_APROBACION`.
 - `motivo_rechazo`: `""` salvo que se rechace; entonces el texto como lo registran los analistas (`Capturas borrosas`,
   `Capturas lejanas`, `Descripción de producto incompleta`, `Foto tomada a la pantalla de otro celular`, `No hay etiqueta de precio`...).
 
@@ -101,6 +105,9 @@ Detalle del motor (después de `motivo_rechazo`):
   `CAPTURA_LEJANA`, `FACHADA_INCORRECTA`, `SIN_ETIQUETA_PRECIO`, `DESCRIPCION_INCOMPLETA`, `EVIDENCIA_AMBIGUA`,
   `CANDIDATA_APROBACION`, `SIN_ANALISIS_VISUAL`, `ERROR_PROCESAMIENTO`.
 - `fuente_producto`: de dónde salió `product_name`: `usuario` | `catalogo` | `foto` | `null`.
+- `fuente_catalogo`: cómo se encontró el producto en el catálogo para rellenar `id_product`, `product_barcode`, los precios de
+  referencia, `product_group` y `product_line`: `id_product` (si el cliente lo manda) | `codigo_barras` | `nombre` (nombre + contenido,
+  solo si la coincidencia es clara; gramo y mililitro cuentan como compatibles) | `null` (no se encontró: esos campos quedan en `null`).
 - La parte oficial del reto (`capture_id`, `decision` = `decision_esperada`, `confidence_score`, `reason_code`, `validaciones`,
   `precio_detectado`, `codigo_barras_detectado`, `explicacion`) se reconstruye con `engine.auto.oficial(registro)`. El archivo del set
   ciego lo sigue generando `run.py` en el formato oficial; este registro es solo la respuesta de la API.

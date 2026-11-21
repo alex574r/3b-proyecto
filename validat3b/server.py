@@ -27,7 +27,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from engine import auto, decide, output, vision
+from engine import auto, catalogo, decide, output, vision
 from engine.data import normalize
 from engine.local_checks import analyze
 
@@ -37,8 +37,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 IMG_RE = re.compile(r"^/imagenes/([A-Za-z0-9_-]{1,64}_(?:facade|product|shelf)\.jpg)$")
 SALIDA = Path(__file__).resolve().parent / "salida_api"  # dentro del proyecto, no depende de dónde se lance
 HOST_RE = re.compile(r"^[A-Za-z0-9.:-]{1,255}$")
-CATALOGO = Path(os.environ.get("VALIDAT3B_CATALOGO") or
-                Path(__file__).resolve().parent.parent / "Validat3B_desarrollo_metadatos" / "catalogo_productos.csv")
+CATALOGO = catalogo.ruta_catalogo()  # VALIDAT3B_CATALOGO, o el de evaluación / desarrollo que exista
 
 
 def parse(body, require_store=True):
@@ -96,7 +95,7 @@ def run_capture(cap, paths, client, usage_log, catalog):
     datos = auto.detectar(cap, local["barcodes"], vis, catalog)
     # el rango del catálogo valida el precio de descuento, salvo que el cliente mande el suyo
     rango = {"min_product_price": datos["min_product_price"], "max_product_price": datos["max_product_price"]}
-    res = decide.decide({**rango, **cap}, local, vis)
+    res = decide.decide({**rango, **cap}, local, vis, datos)
     datos["precio_descuento"] = res["precio_descuento"]
     return res, datos
 
