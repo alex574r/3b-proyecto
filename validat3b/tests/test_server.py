@@ -84,6 +84,7 @@ def main():
     code, res = call(port, "/analizar", solo)
     assert code == 200 and set(res) == {"resultado", "datos_detectados"}, res
     assert output.validate(res["resultado"]) == [] and res["datos_detectados"]["capture_store_name"] is None
+    assert res["resultado"]["precio_descuento"] is None and "precio_descuento" in res["datos_detectados"]
     assert call(port, "/analizar", {k: v for k, v in solo.items() if k != "shelf_b64"})[0] == 400
     code, res = call(port, "/analizar", dict(solo, capture_store_name="Neto", capture_price="14"))
     assert res["datos_detectados"]["capture_store_name"] == "Neto" and res["datos_detectados"]["capture_price"] == 14.0

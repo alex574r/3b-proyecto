@@ -6,7 +6,7 @@ POST /validar   JSON: campos de capturas.json (capture_store_name, capture_barco
                 + facade_b64, product_b64, shelf_b64 (JPEG en base64)
                 -> JSON oficial de la captura (siempre válido; ante error interno, revision_manual).
 POST /analizar  Solo las 3 fotos son obligatorias; todos los demás campos son opcionales y, si vienen, mandan.
-                -> {"resultado": <JSON oficial>, "datos_detectados": {tienda, código, precio, marca, producto, ...}}
+                -> {"resultado": <JSON oficial + precio_descuento>, "datos_detectados": <registro estilo capturas.json>}
 Auth (si hay VALIDAT3B_TOKEN o VALIDAT3B_JWT_SECRET definidos; si no, abierto): header X-Api-Key con el token fijo,
 o Authorization: Bearer <JWT HS256 firmado con VALIDAT3B_JWT_SECRET, con exp a lo sumo 15 min adelante>.
 La llave de Foundry vive solo aquí (FOUNDRY_API_KEY); la app nunca la ve.

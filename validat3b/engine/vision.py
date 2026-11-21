@@ -38,6 +38,11 @@ Evalúa cada criterio con "ok", "falla" o "dudoso":
   "falla" si describe otra variante u otro producto; "dudoso" si está incompleta o no se lee.
 - precio: hay etiqueta de precio y el precio se lee con claridad.
 
+precio_etiqueta es el precio principal impreso en la etiqueta. Revisa las fotos 2 y 3: si una etiqueta o letrero de
+ESTE producto muestra una oferta o promoción ("OFERTA", "AHORRA MÁS", "A SÓLO", precio tachado, "2 x $9.00"), pon en
+precio_descuento el precio por pieza con la promoción (2 x $9.00 -> 4.5; si la etiqueta principal ya es la de oferta,
+repite ese precio) y usa tipo_precio "oferta" o "volumen". Si no hay promoción para este producto, null.
+
 Devuelve este JSON:
 {{
  "criterios": {{"fachada": "...", "pantalla": "...", "nitidez": "...", "cercania": "...",
@@ -45,6 +50,7 @@ Devuelve este JSON:
  "cadena_visible": str|null,
  "descripcion_etiqueta": str|null,
  "precio_etiqueta": number|null,
+ "precio_descuento": number|null,
  "tipo_precio": "regular"|"oferta"|"volumen"|"desconocido",
  "motivo": "una frase con el problema principal, o vacío si no hay"
 }}"""
@@ -70,6 +76,11 @@ evalúa solo lo que se ve en las propias fotos:
   "falla" si describe otro producto; "dudoso" si está incompleta o no se lee.
 - precio: hay etiqueta de precio y el precio se lee con claridad (y coincide con el dato del usuario, si hay).
 
+precio_etiqueta es el precio principal impreso en la etiqueta. Revisa las fotos 2 y 3: si una etiqueta o letrero de
+ESTE producto muestra una oferta o promoción ("OFERTA", "AHORRA MÁS", "A SÓLO", precio tachado, "2 x $9.00"), pon en
+precio_descuento el precio por pieza con la promoción (2 x $9.00 -> 4.5; si la etiqueta principal ya es la de oferta,
+repite ese precio) y usa tipo_precio "oferta" o "volumen". Si no hay promoción para este producto, null.
+
 Extrae además lo que se lea en las fotos, sin inventar nada (null si no se lee). El contenido va en gramos o
 mililitros: convierte kg a gramos y litros a mililitros (1.1 L = 1100 mililitro; 1 kg = 1000 gramo).
 
@@ -80,6 +91,7 @@ Devuelve este JSON:
  "cadena_visible": str|null,
  "descripcion_etiqueta": str|null,
  "precio_etiqueta": number|null,
+ "precio_descuento": number|null,
  "tipo_precio": "regular"|"oferta"|"volumen"|"desconocido",
  "datos": {{"marca": str|null, "producto": "nombre del producto como se lee en el empaque"|null,
            "contenido": number|null, "unidad": "gramo"|"mililitro"|"pieza"|null, "codigo_barras": "solo dígitos"|null}},

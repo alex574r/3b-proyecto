@@ -30,8 +30,10 @@ def jwt(secret, exp, alg="HS256"):
 
 def main():
     cat_file = Path(tempfile.mkdtemp()) / "cat.csv"
-    cat_file.write_text("id_product,product_name,product_barcode,unit_product,unit_quantity_product\n"
-                        "5055,Arena para gato,0763331024755,gramo,2000.0\n", encoding="utf-8")
+    cat_file.write_text("id_product,product_name,product_barcode,product_price,min_product_price,max_product_price,"
+                        "unit_product,unit_quantity_product,product_group,product_line\n"
+                        "5055,Arena para gato,0763331024755,14.0,0.0,28.0,gramo,2000.0,(29) Pets,(04) Accesorios\n",
+                        encoding="utf-8")
     catalog = auto.load_catalog(cat_file)
     assert auto.load_catalog(cat_file.parent / "no_existe.csv") == {}
 
@@ -43,6 +45,24 @@ def main():
     assert d["capture_barcode"] == "763331024755" and d["product_name"] == "Arena para gato"
     assert d["fuente_producto"] == "catalogo" and d["unit_quantity_product"] == 2000.0 and d["unit_product"] == "gramo"
     assert res["decision"] == "revision_manual" and res["reason_code"] == "CANDIDATA_APROBACION"
+    # misma estructura que un registro de capturas.json, con el SKU completado desde el catálogo
+    assert list(d) == ["capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price",
+                       "capture_brand", "id_product", "product_name", "product_barcode", "product_price",
+                       "min_product_price", "max_product_price", "unit_product", "unit_quantity_product",
+                       "product_group", "product_line", "precio_descuento", "fuente_producto"]
+    assert d["capture_id"] == "APP-1" and d["id_product"] == 5055 and d["product_barcode"] == "0763331024755"
+    assert (d["product_price"], d["min_product_price"], d["max_product_price"]) == (14.0, 0.0, 28.0)
+    assert d["product_group"] == "(29) Pets" and d["product_line"] == "(04) Accesorios"
+    assert len(d["capture_date"]) == 19 and d["precio_descuento"] is None
+    assert auto.completar(dict(cap, capture_date="2026-11-19 10:26:48"), LOCAL, VIS, catalog)[1]["capture_date"] == "2026-11-19 10:26:48"
+    # precio de descuento: se valida contra el rango del catálogo (máx. 28) y viaja igual en resultado y datos
+    res, d = auto.completar(cap, LOCAL, dict(VIS, precio_descuento=12.0), catalog)
+    assert res["precio_descuento"] == d["precio_descuento"] == 12.0
+    res, d = auto.completar(dict(cap, capture_price=30.0), LOCAL, dict(VIS, precio_etiqueta=40.0, precio_descuento=30.0), catalog)
+    assert res["precio_descuento"] is None and d["precio_descuento"] is None and res["reason_code"] == "EVIDENCIA_AMBIGUA"
+    # sin catálogo, los campos del SKU quedan en null
+    _, d = auto.completar(cap, LOCAL, VIS, {})
+    assert d["id_product"] is None and d["product_price"] is None and d["product_group"] is None
 
     # sin catálogo: el nombre sale de la foto; código leído localmente tiene prioridad sobre el de Haiku
     res, d = auto.completar(cap, dict(LOCAL, barcodes=["7506233812418"]), VIS, {})

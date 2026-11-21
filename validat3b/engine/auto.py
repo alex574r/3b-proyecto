@@ -5,6 +5,7 @@ barras se leyó y está en él; si no, de lo que Haiku lee en el empaque.
 """
 import csv
 import re
+import time
 from pathlib import Path
 
 from . import decide
@@ -46,21 +47,38 @@ def completar(cap, local, vis, catalog):
     code = cap.get("capture_barcode") or next((c for c in cands if c.lstrip("0") in catalog), cands[0] if cands else None)
     cat = catalog.get(code.lstrip("0")) if code else None
     price = cap.get("capture_price") if cap.get("capture_price") is not None else _num(vis.get("precio_etiqueta"))
+    cat = cat or {}
+    date = cap.get("capture_date")
+    # Misma estructura que un registro de capturas.json: lo leído en las fotos + los datos del SKU desde el catálogo
     datos = {
+        "capture_id": cap["capture_id"],
         "capture_store_name": cap.get("capture_store_name") or vis.get("cadena_visible"),
+        "capture_date": date if isinstance(date, str) and date else time.strftime("%Y-%m-%d %H:%M:%S"),
         "capture_barcode": code,
         "capture_price": price,
         "capture_brand": cap.get("capture_brand") or d.get("marca"),
-        "product_name": cap.get("product_name") or (cat and cat["product_name"]) or d.get("producto"),
-        "unit_quantity_product": cap.get("unit_quantity_product") or (cat and _num(cat["unit_quantity_product"])) or _num(d.get("contenido")),
-        "unit_product": cap.get("unit_product") or (cat and cat["unit_product"]) or d.get("unidad"),
+        "id_product": int(_digits(cat.get("id_product"))) if _digits(cat.get("id_product")) else None,
+        "product_name": cap.get("product_name") or cat.get("product_name") or d.get("producto"),
+        "product_barcode": _digits(cat.get("product_barcode")) or None,
+        "product_price": _num(cat.get("product_price")),
+        "min_product_price": _num(cat.get("min_product_price")),
+        "max_product_price": _num(cat.get("max_product_price")),
+        "unit_product": cap.get("unit_product") or cat.get("unit_product") or d.get("unidad"),
+        "unit_quantity_product": cap.get("unit_quantity_product") or _num(cat.get("unit_quantity_product")) or _num(d.get("contenido")),
+        "product_group": cat.get("product_group"),
+        "product_line": cat.get("product_line"),
+        "precio_descuento": None,  # se llena con el valor ya validado por decide
+        "fuente_producto": ("usuario" if cap.get("product_name") else "catalogo" if cat
+                            else "foto" if d.get("producto") else None),
     }
-    datos["fuente_producto"] = ("usuario" if cap.get("product_name") else "catalogo" if cat
-                                else "foto" if d.get("producto") else None)
-    full = dict(cap, capture_store_name=datos["capture_store_name"], capture_barcode=code, capture_price=price)
+    # El rango del catálogo viaja a decide para validar el precio de descuento
+    full = dict(cap, capture_store_name=datos["capture_store_name"], capture_barcode=code, capture_price=price,
+                min_product_price=datos["min_product_price"], max_product_price=datos["max_product_price"])
     # Si el código no es uno de los decodificados (p. ej. se leyó del texto impreso o salió del catálogo), el JSON no debe
     # reportar "falla" por los códigos de otras cajas: el elegido por el modo automático cuenta como leído de las fotos,
     # y uno escrito por el usuario que no se pudo decodificar queda "no_evaluable".
     if code and code.lstrip("0") not in {_digits(c).lstrip("0") for c in local["barcodes"]}:
         local = dict(local, barcodes=[] if cap.get("capture_barcode") else [code])
-    return decide.decide(full, local, vis or None), datos
+    res = decide.decide(full, local, vis or None)
+    datos["precio_descuento"] = res["precio_descuento"]
+    return res, datos

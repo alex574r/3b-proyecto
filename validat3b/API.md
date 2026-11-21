@@ -44,6 +44,7 @@ Siempre el JSON oficial, incluso si algo falla por dentro (en ese caso `revision
   "validaciones": {"tienda_fachada": "no_evaluable", "producto": "no_evaluable",
                    "codigo_barras": "no_evaluable", "evidencia_precio": "ok"},
   "precio_detectado": 10.0,
+  "precio_descuento": null,
   "codigo_barras_detectado": null,
   "explicacion": "texto para el analista"
 }
@@ -51,7 +52,13 @@ Siempre el JSON oficial, incluso si algo falla por dentro (en ese caso `revision
 - `decision`: `aprobada` | `rechazada` | `revision_manual`. **Hoy el motor no aprueba** (`ALLOW_APPROVE = False`): las capturas
   que se verían bien salen `revision_manual` con `CANDIDATA_APROBACION`.
 - `validaciones.*`: `ok` | `falla` | `no_evaluable`.
-- `precio_detectado`: precio leído de la etiqueta, o `null`. `codigo_barras_detectado`: código leído de las fotos, o `null`.
+- `precio_detectado`: precio leído de la etiqueta, o `null`.
+- `precio_descuento` (campo propio, **no está en el formato oficial del reto**): precio por pieza de una oferta visible en la
+  etiqueta o un letrero junto a ella ("OFERTA", "AHORRA MÁS", precio tachado, "2 x $9.00" → `4.5`); `null` si es precio regular.
+  Se valida: debe ser > 0, no mayor que el precio de la etiqueta y dentro de `[min_product_price, max_product_price]` si se
+  conocen. Si no pasa, sale `null`, la captura no puede quedar como candidata y la `explicacion` dice por qué. El precio
+  capturado se da por confirmado si coincide con el de la etiqueta **o** con el de descuento.
+- `codigo_barras_detectado`: código leído de las fotos, o `null`.
 - `reason_code` (lista provisional, no es la oficial): `APROBADA`, `PRODUCTO_NO_COINCIDE`, `FOTO_DE_PANTALLA`, `IMAGEN_BORROSA`,
   `CAPTURA_LEJANA`, `FACHADA_INCORRECTA`, `SIN_ETIQUETA_PRECIO`, `DESCRIPCION_INCOMPLETA`, `EVIDENCIA_AMBIGUA`,
   `CANDIDATA_APROBACION`, `SIN_ANALISIS_VISUAL`, `ERROR_PROCESAMIENTO`.
@@ -75,12 +82,20 @@ La respuesta `200` es un envoltorio; `resultado` es el JSON oficial de arriba, s
 {
   "resultado": { "...": "JSON oficial" },
   "datos_detectados": {
-    "capture_store_name": "Neto", "capture_barcode": "7506233812418", "capture_price": 12.0,
-    "capture_brand": "Best Choice", "product_name": "Vinagre blanco",
-    "unit_quantity_product": 1100.0, "unit_product": "mililitro", "fuente_producto": "catalogo"
+    "capture_id": "APP-1a2b3c4d", "capture_store_name": "Soriana", "capture_date": "2026-11-19 10:26:48",
+    "capture_barcode": "7501032907570", "capture_price": 75.9, "capture_brand": "Baygon",
+    "id_product": 3870, "product_name": "Insecticida Casa y Jardin", "product_barcode": "7501032907570",
+    "product_price": 72.0, "min_product_price": 0.0, "max_product_price": 124.9,
+    "unit_product": "mililitro", "unit_quantity_product": 400.0,
+    "product_group": "(14) General M", "product_line": "(07) Insect Aroma",
+    "precio_descuento": null, "fuente_producto": "catalogo"
   }
 }
 ```
+- `datos_detectados` tiene la misma estructura que un registro de `capturas.json` (sin rutas de imagen ni etiquetas).
+  `id_product`, `product_barcode`, `product_price`, el rango, `product_group` y `product_line` salen del catálogo cuando el código
+  está en él; si no, `null`. `capture_date` es la que mande el cliente o, si no manda, la hora del servidor.
+  `precio_descuento` es el mismo valor ya validado que en `resultado`. Los códigos de barras van como string.
 - Cada dato sale de lo que Haiku lee en las fotos; `capture_barcode` y el nombre/contenido salen del catálogo de producto cuando el código
   está en él (`fuente_producto`: `usuario` | `catalogo` | `foto` | `null`). Si hay varios códigos en las fotos se prefiere el que está en el catálogo.
 - Sin datos esperados, el motor evalúa lo que se ve en las propias fotos (calidad, producto vs. etiqueta, precio legible); no compara

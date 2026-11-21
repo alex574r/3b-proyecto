@@ -20,7 +20,7 @@ body:json {
 }
 
 script:pre-request {
-  // Requiere Developer Mode en Bruno (Preferences > Security) para poder usar `fs`.
+  // Requiere Developer Mode: ajustes de la colección > Security > JavaScript Sandbox. En Safe Mode `fs` no existe.
   // Coloca fachada.jpg, producto.jpg y etiqueta.jpg en la carpeta indicada por la variable photosDir.
   const fs = require('fs');
   const dir = bru.getEnvVar('photosDir');
@@ -47,11 +47,12 @@ tests {
   test("devuelve el JSON oficial", function () {
     expect(res.body).to.have.all.keys(
       "capture_id", "decision", "confidence_score", "reason_code", "validaciones",
-      "precio_detectado", "codigo_barras_detectado", "explicacion"
+      "precio_detectado", "precio_descuento", "codigo_barras_detectado", "explicacion"
     );
   });
 }
 
 docs {
+  Error "Cannot find module fs": la colección está en Safe Mode. Cámbiala a Developer Mode (ajustes de la colección > Security).
   No uses las fotos del set de 3B: pasan por la red de Cloudflare y las reglas del reto piden mantenerlas dentro del equipo.
 }

@@ -32,8 +32,9 @@ python server.py --no-llm                    # sin llamar a Foundry (solo cheque
 python tests/test_server.py; python tests/test_auto.py   # pruebas de la API y del modo automático, sin red
 ```
 `POST /validar` recibe los campos de `capturas.json` más `facade_b64`, `product_b64`, `shelf_b64` (JPEG en base64) y
-devuelve el JSON oficial. `POST /analizar` solo necesita las 3 fotos y además devuelve `datos_detectados` (tienda, código, precio,
-marca, producto, contenido; el nombre sale del catálogo si el código está en él). Contrato completo y errores en `API.md`.
+devuelve el JSON oficial (más `precio_descuento`, propio: precio de oferta validado o `null`). `POST /analizar` solo necesita
+las 3 fotos y además devuelve `datos_detectados` con la estructura de un registro de `capturas.json` (lo leído en las fotos
+y los datos del SKU desde el catálogo si el código está en él). Contrato completo y errores en `API.md`.
 La app Android está en `../3bApp` (pantalla `ValidarScreen`, cliente `ValidatApi.kt`).
 
 ## Estado actual

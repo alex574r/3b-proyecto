@@ -13,9 +13,9 @@ LOCAL_OK = {"blur": {"product": 600.0, "shelf": 500.0}, "moire": {"product": 30,
 ALL_OK = {k: "ok" for k in decide.CRITERIOS}
 
 
-def vis(precio_et=10.0, **crit):
+def vis(precio_et=10.0, desc=None, **crit):
     return {"criterios": dict(ALL_OK, **crit), "cadena_visible": "Aurrera", "precio_etiqueta": precio_et,
-            "tipo_precio": "regular", "motivo": ""}
+            "precio_descuento": desc, "tipo_precio": "regular", "motivo": ""}
 
 
 def run(local=LOCAL_OK, v="default"):
@@ -70,6 +70,28 @@ def main():
     # barcode leído distinto se reporta pero no bloquea
     r = run(local=dict(LOCAL_OK, barcodes=["9999"]))
     assert r["validaciones"]["codigo_barras"] == "falla" and r["decision"] == "aprobada"
+    # precio de descuento: sin oferta -> null
+    assert run()["precio_descuento"] is None
+    # el usuario capturó el precio de oferta (10) y la etiqueta regular dice 12: el precio queda confirmado
+    r = run(v=vis(precio_et=12.0, desc=10.0))
+    assert r["decision"] == "aprobada" and r["precio_descuento"] == 10.0 and r["precio_detectado"] == 12.0
+    # la oferta puede ser el precio principal de la etiqueta
+    assert run(v=vis(desc=10.0))["precio_descuento"] == 10.0
+    # oferta mayor que la etiqueta, ilegible o fuera del rango del catálogo: se descarta y bloquea la aprobación
+    for bad_v, cap in ((vis(desc=15.0), CAP), (vis(desc="x"), CAP), (vis(desc=0), CAP),
+                       (vis(desc=9.0), dict(CAP, min_product_price=0.0, max_product_price=8.0)),
+                       (vis(desc=2.0), dict(CAP, min_product_price=5.0, max_product_price=20.0))):
+        r = decide.decide(cap, LOCAL_OK, bad_v)
+        assert output.validate(r) == [] and r["precio_descuento"] is None, r
+        assert r["reason_code"] == "EVIDENCIA_AMBIGUA" and "descuento" in r["explicacion"], r
+    # dentro del rango sí vale
+    assert decide.decide(dict(CAP, min_product_price=5.0, max_product_price=20.0), LOCAL_OK,
+                         vis(desc=9.0))["precio_descuento"] == 9.0
+    # un rechazo firme conserva el descuento leído
+    assert run(v=vis(desc=8.0, pantalla="falla"))["precio_descuento"] == 8.0
+    assert "precio_descuento" in output.validate(dict(run(), precio_descuento="8"))
+    assert "precio_descuento" in output.validate(dict(run(), precio_descuento=True))
+
     # fallback siempre válido
     assert output.validate(output.fallback("CAP-9", "x")) == []
     # costo

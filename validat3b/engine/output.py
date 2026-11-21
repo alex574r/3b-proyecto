@@ -13,7 +13,7 @@ REASON_CODES = {
 }
 
 
-def make(capture_id, decision, confidence, reason, validaciones, precio=None, barcode=None, explicacion=""):
+def make(capture_id, decision, confidence, reason, validaciones, precio=None, barcode=None, explicacion="", descuento=None):
     return {
         "capture_id": capture_id,
         "decision": decision,
@@ -21,6 +21,7 @@ def make(capture_id, decision, confidence, reason, validaciones, precio=None, ba
         "reason_code": reason,
         "validaciones": validaciones,
         "precio_detectado": precio,
+        "precio_descuento": descuento,  # campo propio (no está en el formato oficial): precio de oferta por pieza, o null
         "codigo_barras_detectado": barcode,
         "explicacion": explicacion,
     }
@@ -47,9 +48,10 @@ def validate(o):
     v = o.get("validaciones")
     if not isinstance(v, dict) or set(v) != set(VALIDACION_KEYS) or not set(v.values()) <= VALIDACION_VALUES:
         e.append("validaciones")
-    p = o.get("precio_detectado")
-    if p is not None and not isinstance(p, (int, float)):
-        e.append("precio_detectado")
+    for k in ("precio_detectado", "precio_descuento"):
+        p = o.get(k)
+        if p is not None and (isinstance(p, bool) or not isinstance(p, (int, float))):
+            e.append(k)
     b = o.get("codigo_barras_detectado")
     if b is not None and not isinstance(b, str):
         e.append("codigo_barras_detectado")

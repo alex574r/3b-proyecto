@@ -50,6 +50,26 @@ def _barcode_check(cap, local):
     return "falla", local["barcodes"][0]
 
 
+def _is_num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _discount(vision, cap, precio):
+    """(precio de oferta validado o None, motivo si se descartó). Una oferta no puede costar más que el precio de la
+    etiqueta ni salirse del rango de referencia del catálogo; si pasa, Haiku probablemente leyó mal la etiqueta."""
+    d = vision.get("precio_descuento")
+    if d is None:
+        return None, ""
+    if not _is_num(d) or d <= 0:
+        return None, "precio de descuento ilegible"
+    if precio is not None and d > precio + PRICE_TOL:
+        return None, f"precio de descuento {d} mayor que el de la etiqueta {precio}"
+    lo, hi = cap.get("min_product_price"), cap.get("max_product_price")
+    if _is_num(hi) and hi > 0 and not (lo if _is_num(lo) else 0) <= d <= hi:
+        return None, f"precio de descuento {d} fuera del rango de referencia"
+    return float(d), ""
+
+
 def decide(cap, local, vision):
     cid = cap["capture_id"]
     bc_val, bc_found = _barcode_check(cap, local)
@@ -63,7 +83,10 @@ def decide(cap, local, vision):
     crit = {k: (vision.get("criterios") or {}).get(k) for k in CRITERIOS}
     p = vision.get("precio_etiqueta")
     precio = float(p) if isinstance(p, (int, float)) else None
-    price_ok = precio is not None and cap["capture_price"] is not None and abs(precio - cap["capture_price"]) <= PRICE_TOL
+    desc, desc_nota = _discount(vision, cap, precio)
+    cp = cap["capture_price"]
+    # el usuario pudo capturar el precio regular o el de oferta: cualquiera de los dos confirma el precio
+    price_ok = cp is not None and any(x is not None and abs(x - cp) <= PRICE_TOL for x in (precio, desc))
 
     val["tienda_fachada"] = _VAL.get(crit["fachada"], "no_evaluable")
     val["producto"] = _worst(*(_VAL.get(crit[k], "no_evaluable") for k in ("producto", "etiqueta", "cercania")))
@@ -93,22 +116,26 @@ def decide(cap, local, vision):
     )
     for hit, code, why in firm:
         if hit:
-            return output.make(cid, "rechazada", FIRM_CONF, code, val, precio, bc_found, motivo or why)
+            return output.make(cid, "rechazada", FIRM_CONF, code, val, precio, bc_found, motivo or why, desc)
 
     # --- aprobar solo si todo está en verde ---
     all_ok = all(crit[k] == "ok" for k in CRITERIOS)
     local_ok = min_blur >= APPROVE_BLUR_MIN and max_moire <= APPROVE_MOIRE_MAX
-    if all_ok and local_ok and price_ok:
+    if all_ok and local_ok and price_ok and not desc_nota:
         if ALLOW_APPROVE:
             return output.make(cid, "aprobada", APPROVE_CONF, "APROBADA", val, precio, bc_found,
-                               "Fachada, producto y etiqueta coinciden con lo esperado; precio confirmado en etiqueta.")
+                               "Fachada, producto y etiqueta coinciden con lo esperado; precio confirmado en etiqueta.", desc)
         return output.make(cid, "revision_manual", MANUAL_CONF, "CANDIDATA_APROBACION", val, precio, bc_found,
-                           "Toda la evidencia coincide; la aprobación automática está desactivada, revisión rápida.")
+                           "Toda la evidencia coincide; la aprobación automática está desactivada, revisión rápida.", desc)
 
     dudas = [k for k in CRITERIOS if crit[k] != "ok"]
     if not local_ok:
         dudas.append("calidad_local")
     if not price_ok:
         dudas.append("precio_no_confirmado")
-    return output.make(cid, "revision_manual", MANUAL_CONF, "EVIDENCIA_AMBIGUA", val, precio, bc_found,
-                       motivo or f"No se puede confirmar: {', '.join(dudas)}.")
+    if desc_nota:
+        dudas.append(desc_nota)
+    expl = motivo or f"No se puede confirmar: {', '.join(dudas)}."
+    if desc_nota and motivo:
+        expl += f" Además: {desc_nota}."
+    return output.make(cid, "revision_manual", MANUAL_CONF, "EVIDENCIA_AMBIGUA", val, precio, bc_found, expl, desc)
