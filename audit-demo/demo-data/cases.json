@@ -1,0 +1,97 @@
+{
+  "ejemplo": {
+    "capture_store_name": "Bodega Aurrera",
+    "capture_barcode": "7501234567890",
+    "capture_price": 42.5,
+    "capture_brand": "La Huerta",
+    "product_name": "Frijoles negros",
+    "unit_quantity_product": 500,
+    "unit_product": "g"
+  },
+  "casos": [
+    {
+      "capture_id": "CAP-000142",
+      "titulo": "Evidencia validada",
+      "recibida": "09:41",
+      "decision_esperada": "aprobada",
+      "confidence_score": 0.97,
+      "reason_code": "APROBADA",
+      "validaciones": {"tienda_fachada":"ok","producto":"ok","codigo_barras":"ok","evidencia_precio":"ok"},
+      "precio_detectado": 42.5,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "La fachada, el producto y la etiqueta corresponden a la captura. El precio y el código de barras coinciden."
+    },
+    {
+      "capture_id": "CAP-000143",
+      "titulo": "Foto de pantalla",
+      "recibida": "09:41",
+      "decision_esperada": "rechazada",
+      "confidence_score": 0.9,
+      "reason_code": "FOTO_DE_PANTALLA",
+      "validaciones": {"tienda_fachada":"ok","producto":"no_evaluable","codigo_barras":"ok","evidencia_precio":"ok"},
+      "precio_detectado": 42.5,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "La foto del producto parece tomada de la pantalla de otro teléfono. Fotografía directamente el empaque."
+    },
+    {
+      "capture_id": "CAP-000144",
+      "titulo": "Sin etiqueta de precio",
+      "recibida": "09:38",
+      "decision_esperada": "rechazada",
+      "confidence_score": 0.9,
+      "reason_code": "SIN_ETIQUETA_PRECIO",
+      "validaciones": {"tienda_fachada":"ok","producto":"ok","codigo_barras":"ok","evidencia_precio":"falla"},
+      "precio_detectado": null,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "La tercera foto no muestra una etiqueta de precio legible. Fotografía el precio y la descripción en el mismo encuadre."
+    },
+    {
+      "capture_id": "CAP-000145",
+      "titulo": "Candidata a aprobación",
+      "recibida": "09:41",
+      "decision_esperada": "revision_manual",
+      "confidence_score": 0.5,
+      "reason_code": "CANDIDATA_APROBACION",
+      "validaciones": {"tienda_fachada":"ok","producto":"ok","codigo_barras":"ok","evidencia_precio":"ok"},
+      "precio_detectado": 42.5,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "Toda la evidencia coincide. La aprobación automática está desactivada y la captura pasa a revisión rápida."
+    },
+    {
+      "capture_id": "CAP-000146",
+      "titulo": "Evidencia ambigua",
+      "recibida": "09:38",
+      "decision_esperada": "revision_manual",
+      "confidence_score": 0.5,
+      "reason_code": "EVIDENCIA_AMBIGUA",
+      "validaciones": {"tienda_fachada":"ok","producto":"ok","codigo_barras":"ok","evidencia_precio":"no_evaluable"},
+      "precio_detectado": null,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "El reflejo impide confirmar los dígitos completos del precio. La evidencia necesita revisión manual."
+    },
+    {
+      "capture_id": "CAP-000147",
+      "titulo": "Sin análisis visual",
+      "recibida": "09:35",
+      "decision_esperada": "revision_manual",
+      "confidence_score": 0.5,
+      "reason_code": "SIN_ANALISIS_VISUAL",
+      "validaciones": {"tienda_fachada":"no_evaluable","producto":"no_evaluable","codigo_barras":"ok","evidencia_precio":"no_evaluable"},
+      "precio_detectado": null,
+      "codigo_barras_detectado": "7501234567890",
+      "explicacion": "El motor no recibió respuesta del análisis visual. La evidencia queda disponible para revisión."
+    },
+    {
+      "capture_id": "CAP-000148",
+      "titulo": "Error de procesamiento",
+      "recibida": "09:32",
+      "decision_esperada": "revision_manual",
+      "confidence_score": 0,
+      "reason_code": "ERROR_PROCESAMIENTO",
+      "validaciones": {"tienda_fachada":"no_evaluable","producto":"no_evaluable","codigo_barras":"no_evaluable","evidencia_precio":"no_evaluable"},
+      "precio_detectado": null,
+      "codigo_barras_detectado": null,
+      "explicacion": "El motor no pudo procesar la captura y la envió a revisión manual."
+    }
+  ]
+}

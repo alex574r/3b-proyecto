@@ -4,6 +4,9 @@ import io
 import json
 import os
 import threading
+import time
+
+from . import etiqueta
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -101,11 +104,17 @@ Devuelve este JSON:
 _log_lock = threading.Lock()
 
 
-def _img_block(path):
-    im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+def _img_block(path, registro=None):
+    inicio = time.perf_counter()
+    with Image.open(path) as foto:
+        im = ImageOps.exif_transpose(foto).convert("RGB")
+    if registro is not None:
+        im, registro["vista_etiqueta"], registro["motivo_vista"] = etiqueta.preparar(im)
     im.thumbnail((MAX_SIDE, MAX_SIDE))
     buf = io.BytesIO()
     im.save(buf, "JPEG", quality=85)
+    if registro is not None:
+        registro["preparacion_etiqueta_ms"] = round((time.perf_counter() - inicio) * 1000, 1)
     data = base64.b64encode(buf.getvalue()).decode()
     return {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": data}}
 
@@ -128,12 +137,13 @@ def extract(cap, paths, client, usage_log, auto=False):
         capture_id=cap["capture_id"], store=nd(cap.get("capture_store_name")), name=nd(cap.get("product_name")),
         brand=nd(cap.get("capture_brand")), qty=nd(cap.get("unit_quantity_product")), unit=nd(cap.get("unit_product")),
         price=nd(cap.get("capture_price")))}]
+    registro = {}
     for k in ("facade", "product", "shelf"):
-        content.append(_img_block(paths[k]))
+        content.append(_img_block(paths[k], registro) if k == "shelf" else _img_block(paths[k]))
     msg = client.messages.create(model=MODEL, max_tokens=700, thinking={"type": "disabled"}, system=SYSTEM,
                                  messages=[{"role": "user", "content": content}])
     with _log_lock, open(usage_log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"capture_id": cap["capture_id"], "input_tokens": msg.usage.input_tokens,
+        f.write(json.dumps({**registro, "capture_id": cap["capture_id"], "input_tokens": msg.usage.input_tokens,
                             "output_tokens": msg.usage.output_tokens}) + "\n")
     text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
     try:
