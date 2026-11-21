@@ -24,15 +24,17 @@ Salidas: `salida/<id>.json` (oficial), `salida/resultados.json` (consolidado), `
 ## API para la app (`server.py`)
 ```powershell
 $env:FOUNDRY_API_KEY = "<api-key>"          # solo vive en el servidor
-$env:VALIDAT3B_TOKEN = "<token-de-la-app>"   # opcional: la app lo manda en X-Api-Key
-python server.py                             # emulador Android: http://10.0.2.2:8000
-python server.py --host 0.0.0.0              # celular físico: http://<IP-del-PC>:8000 (permitir el firewall)
+$env:VALIDAT3B_TOKEN = "<token-fijo>"        # opcional: X-Api-Key (Bruno)
+$env:VALIDAT3B_JWT_SECRET = "<secreto>"      # opcional: la app firma un JWT HS256 de 5 min con este secreto
+python server.py                             # en producción: .\iniciar_publico.ps1 (lee .env)
+python server.py --host 0.0.0.0              # celular físico en la misma red: http://<IP-del-PC>:8000
 python server.py --no-llm                    # sin llamar a Foundry (solo chequeos locales)
-python tests/test_server.py                  # pruebas de la API, sin red
+python tests/test_server.py; python tests/test_auto.py   # pruebas de la API y del modo automático, sin red
 ```
 `POST /validar` recibe los campos de `capturas.json` más `facade_b64`, `product_b64`, `shelf_b64` (JPEG en base64) y
-devuelve el JSON oficial. Entradas inválidas -> 400; errores internos -> JSON válido `revision_manual`. `GET /health`.
-La app Android está en `C:\Users\alex5\AndroidStudioProjects\3bApp` (pantalla `ValidarScreen`, cliente `ValidatApi.kt`).
+devuelve el JSON oficial. `POST /analizar` solo necesita las 3 fotos y además devuelve `datos_detectados` (tienda, código, precio,
+marca, producto, contenido; el nombre sale del catálogo si el código está en él). Contrato completo y errores en `API.md`.
+La app Android está en `../3bApp` (pantalla `ValidarScreen`, cliente `ValidatApi.kt`).
 
 ## Estado actual
 - **Aprobación automática desactivada** (`ALLOW_APPROVE = False` en `engine/decide.py`). En las 100 de dev,

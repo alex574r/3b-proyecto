@@ -1,3 +1,10 @@
+import java.util.Properties
+
+// URL de la API y secreto del JWT salen de local.properties (ignorado por git), no del código
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,6 +25,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "API_URL", "\"${localProps.getProperty("validat3b.apiUrl", "https://api.jamp.digital")}\"")
+        // shortcut: el secreto queda dentro del APK; sirve para esta demo, en producción emitirlo desde un login
+        buildConfigField("String", "JWT_SECRET", "\"${localProps.getProperty("validat3b.jwtSecret", "")}\"")
     }
 
     buildTypes {
@@ -38,6 +49,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -49,6 +49,43 @@ Devuelve este JSON:
  "motivo": "una frase con el problema principal, o vacío si no hay"
 }}"""
 
+# Modo automático (/analizar): la app solo manda fotos; los datos que el usuario no escribió dicen "(sin dato)"
+# y se evalúa lo que se ve en las propias fotos (consistencia producto/etiqueta, calidad). Además se extraen los datos.
+PROMPT_AUTO = """Captura {capture_id}. Datos escritos por el usuario ("(sin dato)" = no hay dato):
+- Cadena/tienda: {store}
+- Producto: {name} | marca: {brand} | contenido: {qty} {unit}
+- Precio: {price}
+
+Fotos, en orden: 1) fachada de la tienda, 2) producto, 3) etiqueta de precio en anaquel.
+
+Evalúa cada criterio con "ok", "falla" o "dudoso". Si hay dato del usuario, compáralo con las fotos; si no hay,
+evalúa solo lo que se ve en las propias fotos:
+- fachada: se lee con claridad el nombre de una cadena (y es la indicada, si hay dato). "falla" si es otra cadena.
+- pantalla: "falla" si la foto de producto o de etiqueta parece tomada a la pantalla de otro celular
+  (moiré, píxeles, marco de teléfono, reflejos de vidrio, imagen volteada).
+- nitidez: producto y etiqueta enfocados, sin movimiento. "falla" si están borrosos o movidos.
+- cercania: el producto es el protagonista de la foto 2. "falla" si es un anaquel completo o una toma lejana.
+- producto: en la foto 2 se distinguen marca, variante y contenido (y coinciden con el dato del usuario, si hay).
+- etiqueta: la descripción de la etiqueta corresponde al producto de la foto 2 (marca, variante y contenido).
+  "falla" si describe otro producto; "dudoso" si está incompleta o no se lee.
+- precio: hay etiqueta de precio y el precio se lee con claridad (y coincide con el dato del usuario, si hay).
+
+Extrae además lo que se lea en las fotos, sin inventar nada (null si no se lee). El contenido va en gramos o
+mililitros: convierte kg a gramos y litros a mililitros (1.1 L = 1100 mililitro; 1 kg = 1000 gramo).
+
+Devuelve este JSON:
+{{
+ "criterios": {{"fachada": "...", "pantalla": "...", "nitidez": "...", "cercania": "...",
+               "producto": "...", "etiqueta": "...", "precio": "..."}},
+ "cadena_visible": str|null,
+ "descripcion_etiqueta": str|null,
+ "precio_etiqueta": number|null,
+ "tipo_precio": "regular"|"oferta"|"volumen"|"desconocido",
+ "datos": {{"marca": str|null, "producto": "nombre del producto como se lee en el empaque"|null,
+           "contenido": number|null, "unidad": "gramo"|"mililitro"|"pieza"|null, "codigo_barras": "solo dígitos"|null}},
+ "motivo": "una frase con el problema principal, o vacío si no hay"
+}}"""
+
 _log_lock = threading.Lock()
 
 
@@ -73,11 +110,12 @@ def _parse_json(text):
     return json.loads(text[a:b + 1])
 
 
-def extract(cap, paths, client, usage_log):
-    content = [{"type": "text", "text": PROMPT.format(
-        capture_id=cap["capture_id"], store=cap.get("capture_store_name"), name=cap.get("product_name"),
-        brand=cap.get("capture_brand"), qty=cap.get("unit_quantity_product"), unit=cap.get("unit_product"),
-        price=cap.get("capture_price"))}]
+def extract(cap, paths, client, usage_log, auto=False):
+    nd = (lambda v: "(sin dato)" if v in (None, "") else v) if auto else (lambda v: v)
+    content = [{"type": "text", "text": (PROMPT_AUTO if auto else PROMPT).format(
+        capture_id=cap["capture_id"], store=nd(cap.get("capture_store_name")), name=nd(cap.get("product_name")),
+        brand=nd(cap.get("capture_brand")), qty=nd(cap.get("unit_quantity_product")), unit=nd(cap.get("unit_product")),
+        price=nd(cap.get("capture_price")))}]
     for k in ("facade", "product", "shelf"):
         content.append(_img_block(paths[k]))
     msg = client.messages.create(model=MODEL, max_tokens=700, thinking={"type": "disabled"}, system=SYSTEM,

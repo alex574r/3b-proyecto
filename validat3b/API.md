@@ -4,8 +4,12 @@ Base: `https://api.jamp.digital` (túnel de Cloudflare → `server.py` en el PC)
 encendido y `iniciar_publico.ps1` corriendo.
 
 ## Autenticación
-Todas las peticiones `POST` llevan el header `X-Api-Key: <VALIDAT3B_TOKEN>` (el valor está en `validat3b\.env`).
-Sin él o con otro valor: `401 {"error": "token inválido"}`. `GET /health` no lo pide.
+Todas las peticiones `POST` llevan una de estas dos credenciales (los valores están en `validat3b\.env`):
+- `X-Api-Key: <VALIDAT3B_TOKEN>` (token fijo; lo usa Bruno), o
+- `Authorization: Bearer <JWT>`: HS256 firmado con `VALIDAT3B_JWT_SECRET` y con `exp` a lo sumo 15 min adelante (se toleran 30 s de desfase
+  de reloj; otro `alg` o un `exp` ausente/vencido se rechaza). La app Android genera uno nuevo en cada petición (`ValidatApi.jwt`).
+
+Sin credencial válida: `401 {"error": "token inválido"}`. `GET /health` no pide nada.
 
 ## `GET /health`
 `200 {"status": "ok", "llm": true}`. `llm: false` significa que el servidor corre con `--no-llm` (todo sale a revisión manual).
@@ -62,6 +66,27 @@ Siempre el JSON oficial, incluso si algo falla por dentro (en ese caso `revision
 | 413 | Cuerpo vacío o mayor a 40 MB |
 
 Un 4xx no gasta tokens y no se reintenta tal cual. Un 200 con `ERROR_PROCESAMIENTO` sí se puede reintentar.
+
+## `POST /analizar`
+Para la app: solo las 3 fotos (`facade_b64`, `product_b64`, `shelf_b64`) son obligatorias. Cualquier campo de la tabla de `/validar`
+(incluido `capture_store_name`) es opcional y, si viene, manda sobre lo detectado. Mismos códigos de error que `/validar`.
+La respuesta `200` es un envoltorio; `resultado` es el JSON oficial de arriba, sin cambios:
+```json
+{
+  "resultado": { "...": "JSON oficial" },
+  "datos_detectados": {
+    "capture_store_name": "Neto", "capture_barcode": "7506233812418", "capture_price": 12.0,
+    "capture_brand": "Best Choice", "product_name": "Vinagre blanco",
+    "unit_quantity_product": 1100.0, "unit_product": "mililitro", "fuente_producto": "catalogo"
+  }
+}
+```
+- Cada dato sale de lo que Haiku lee en las fotos; `capture_barcode` y el nombre/contenido salen del catálogo de producto cuando el código
+  está en él (`fuente_producto`: `usuario` | `catalogo` | `foto` | `null`). Si hay varios códigos en las fotos se prefiere el que está en el catálogo.
+- Sin datos esperados, el motor evalúa lo que se ve en las propias fotos (calidad, producto vs. etiqueta, precio legible); no compara
+  contra un producto esperado. Para eso usa `/validar` con los datos esperados.
+- Si algo falla por dentro: `200` con `resultado` = `revision_manual` / `ERROR_PROCESAMIENTO` y `datos_detectados` = `{}`.
+- Cuesta lo mismo que `/validar` (~3.9k tokens de entrada, ~0.25k de salida).
 
 ## Reglas para el cliente
 1. **Timeout de lectura ≥ 90 s.** Con Haiku tarda unos 2–10 s (más si hay cola); Cloudflare corta a los 100 s.

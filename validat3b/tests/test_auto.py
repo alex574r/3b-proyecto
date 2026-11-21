@@ -1,0 +1,95 @@
+"""Modo automático y JWT, sin red: python tests/test_auto.py"""
+import base64
+import hashlib
+import hmac
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from engine import auto, output  # noqa: E402
+from server import verify_jwt  # noqa: E402
+
+LOCAL = {"blur": {"product": 600.0, "shelf": 500.0}, "moire": {"product": 30, "shelf": 30}, "barcodes": []}
+CRIT = {k: "ok" for k in ("fachada", "pantalla", "nitidez", "cercania", "producto", "etiqueta", "precio")}
+VIS = {"criterios": CRIT, "cadena_visible": "Neto", "precio_etiqueta": 14.0, "motivo": "",
+       "datos": {"marca": "Cat-tit", "producto": "Arena sanitaria gato", "contenido": 2000, "unidad": "gramo",
+                 "codigo_barras": "763331024755"}}
+
+
+def b64(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def jwt(secret, exp, alg="HS256"):
+    h, p = b64(json.dumps({"alg": alg, "typ": "JWT"}).encode()), b64(json.dumps({"exp": exp}).encode())
+    return f"{h}.{p}.{b64(hmac.new(secret.encode(), f'{h}.{p}'.encode(), hashlib.sha256).digest())}"
+
+
+def main():
+    cat_file = Path(tempfile.mkdtemp()) / "cat.csv"
+    cat_file.write_text("id_product,product_name,product_barcode,unit_product,unit_quantity_product\n"
+                        "5055,Arena para gato,0763331024755,gramo,2000.0\n", encoding="utf-8")
+    catalog = auto.load_catalog(cat_file)
+    assert auto.load_catalog(cat_file.parent / "no_existe.csv") == {}
+
+    cap = {"capture_id": "APP-1", "capture_barcode": None, "capture_price": None}
+    # todo se completa desde las fotos; el nombre sale del catálogo porque el código de Haiku está en él
+    res, d = auto.completar(cap, LOCAL, VIS, catalog)
+    assert output.validate(res) == []
+    assert d["capture_store_name"] == "Neto" and d["capture_price"] == 14.0 and d["capture_brand"] == "Cat-tit"
+    assert d["capture_barcode"] == "763331024755" and d["product_name"] == "Arena para gato"
+    assert d["fuente_producto"] == "catalogo" and d["unit_quantity_product"] == 2000.0 and d["unit_product"] == "gramo"
+    assert res["decision"] == "revision_manual" and res["reason_code"] == "CANDIDATA_APROBACION"
+
+    # sin catálogo: el nombre sale de la foto; código leído localmente tiene prioridad sobre el de Haiku
+    res, d = auto.completar(cap, dict(LOCAL, barcodes=["7506233812418"]), VIS, {})
+    assert d["product_name"] == "Arena sanitaria gato" and d["fuente_producto"] == "foto"
+    assert d["capture_barcode"] == "7506233812418"
+
+    # varios códigos en las fotos: gana el que está en el catálogo aunque el local sea otro (el de la caja)
+    res, d = auto.completar(cap, dict(LOCAL, barcodes=["0738545010740"]), VIS, catalog)
+    assert d["capture_barcode"] == "763331024755" and d["product_name"] == "Arena para gato"
+    # el JSON reporta el código elegido (no el de la caja) y no marca falla por los otros códigos
+    assert res["codigo_barras_detectado"] == "763331024755" and res["validaciones"]["codigo_barras"] == "ok"
+    # código escrito por el usuario que ninguna foto decodifica: no_evaluable, sin inventar "detectado"
+    res, d = auto.completar(dict(cap, capture_barcode="763331024755"), dict(LOCAL, barcodes=["0738545010740"]), VIS, catalog)
+    assert res["validaciones"]["codigo_barras"] == "no_evaluable" and res["codigo_barras_detectado"] is None
+    # código escrito por el usuario que sí se decodifica: ok
+    res, d = auto.completar(dict(cap, capture_barcode="763331024755"), dict(LOCAL, barcodes=["763331024755"]), VIS, catalog)
+    assert res["validaciones"]["codigo_barras"] == "ok"
+
+    # lo que escribió el usuario manda; un precio distinto al de la etiqueta impide el candidato
+    res, d = auto.completar(dict(cap, capture_price=20.0, product_name="Otro", capture_store_name="Soriana"), LOCAL, VIS, catalog)
+    assert d["capture_price"] == 20.0 and d["product_name"] == "Otro" and d["fuente_producto"] == "usuario"
+    assert res["reason_code"] == "EVIDENCIA_AMBIGUA" and res["validaciones"]["evidencia_precio"] == "falla"
+
+    # una falla de calidad firme se rechaza igual que en /validar
+    bad = dict(VIS, criterios=dict(CRIT, pantalla="falla"))
+    assert auto.completar(cap, LOCAL, bad, catalog)[0]["reason_code"] == "FOTO_DE_PANTALLA"
+
+    # sin análisis visual: sin datos inventados, a revisión manual
+    res, d = auto.completar(cap, LOCAL, None, catalog)
+    assert res["reason_code"] == "SIN_ANALISIS_VISUAL" and d["product_name"] is None and d["capture_barcode"] is None
+    assert auto.completar(cap, LOCAL, {}, catalog)[0]["reason_code"] == "SIN_ANALISIS_VISUAL"
+
+    # códigos de longitud imposible se ignoran
+    _, d = auto.completar(cap, LOCAL, dict(VIS, datos=dict(VIS["datos"], codigo_barras="12345")), {})
+    assert d["capture_barcode"] is None
+
+    # JWT
+    now, s = 1_000_000, "secreto"
+    assert verify_jwt(jwt(s, now + 300), s, now)
+    assert not verify_jwt(jwt(s, now + 300), "otro", now)             # firma incorrecta
+    assert not verify_jwt(jwt(s, now - 600), s, now)                  # vencido
+    assert not verify_jwt(jwt(s, now + 100_000), s, now)              # vida demasiado larga
+    assert not verify_jwt(jwt(s, now + 300, alg="none"), s, now)      # alg distinto
+    assert not verify_jwt("basura", s, now) and not verify_jwt("a.b.c", s, now) and not verify_jwt("", s, now)
+    assert not verify_jwt(jwt(s, "mañana"), s, now)                   # exp no numérico
+    print("OK")
+
+
+if __name__ == "__main__":
+    main()

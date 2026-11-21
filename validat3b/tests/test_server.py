@@ -4,6 +4,7 @@ import io
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -15,6 +16,7 @@ from PIL import Image  # noqa: E402
 
 import server  # noqa: E402
 from engine import output  # noqa: E402
+from test_auto import jwt  # noqa: E402
 
 
 def jpeg_b64():
@@ -37,6 +39,8 @@ def call(port, path, body=None, headers=None):
 def main():
     server.Handler.client = None
     server.Handler.token = None
+    server.Handler.jwt_secret = None
+    server.Handler.catalog = {}
     srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -72,6 +76,30 @@ def main():
     server.Handler.token = "s3cret"
     assert call(port, "/validar", ok)[0] == 401
     assert call(port, "/validar", ok, {"X-Api-Key": "mal"})[0] == 401
+    assert call(port, "/validar", ok, {"X-Api-Key": "s3cret"})[0] == 200
+    server.Handler.token = None
+
+    # /analizar: solo fotos; sin Haiku no inventa datos, y lo que manda el usuario aparece en datos_detectados
+    solo = {"facade_b64": img, "product_b64": img, "shelf_b64": img}
+    code, res = call(port, "/analizar", solo)
+    assert code == 200 and set(res) == {"resultado", "datos_detectados"}, res
+    assert output.validate(res["resultado"]) == [] and res["datos_detectados"]["capture_store_name"] is None
+    assert call(port, "/analizar", {k: v for k, v in solo.items() if k != "shelf_b64"})[0] == 400
+    code, res = call(port, "/analizar", dict(solo, capture_store_name="Neto", capture_price="14"))
+    assert res["datos_detectados"]["capture_store_name"] == "Neto" and res["datos_detectados"]["capture_price"] == 14.0
+    code, res = call(port, "/analizar", dict(solo, product_b64=base64.b64encode(b"basura").decode()))
+    assert code == 200 and res["resultado"]["reason_code"] == "ERROR_PROCESAMIENTO" and res["datos_detectados"] == {}
+
+    # JWT (y el token fijo sigue valiendo si ambos están configurados)
+    server.Handler.jwt_secret = "clave-jwt"
+    now = int(time.time())
+    assert call(port, "/analizar", solo)[0] == 401
+    assert call(port, "/analizar", solo, {"Authorization": "Bearer " + jwt("clave-jwt", now + 300)})[0] == 200
+    assert call(port, "/analizar", solo, {"Authorization": "Bearer " + jwt("otra", now + 300)})[0] == 401
+    assert call(port, "/analizar", solo, {"Authorization": "Bearer " + jwt("clave-jwt", now - 600)})[0] == 401
+    assert call(port, "/validar", ok, {"Authorization": "Bearer " + jwt("clave-jwt", now + 300)})[0] == 200
+    assert call(port, "/health")[0] == 200  # health nunca pide auth
+    server.Handler.token = "s3cret"
     assert call(port, "/validar", ok, {"X-Api-Key": "s3cret"})[0] == 200
     srv.shutdown()
     print("OK")

@@ -1,0 +1,66 @@
+"""Modo automático (/analizar): completa los datos de la captura desde las fotos y decide con ellos.
+
+Los datos que el usuario sí escribió tienen prioridad. El nombre del producto sale del catálogo si el código de
+barras se leyó y está en él; si no, de lo que Haiku lee en el empaque.
+"""
+import csv
+import re
+from pathlib import Path
+
+from . import decide
+
+CODE_LENS = (8, 12, 13, 14)  # EAN-8, UPC-A, EAN-13, ITF-14
+
+
+def _digits(s):
+    return re.sub(r"\D", "", str(s or ""))
+
+
+def _code(s):
+    d = _digits(s)
+    return d if len(d) in CODE_LENS else None
+
+
+def _num(x):
+    try:
+        return None if x in (None, "") or isinstance(x, bool) else float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_catalog(path):
+    """{código sin ceros a la izquierda: fila del catálogo}. Vacío si el archivo no existe."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    with p.open(encoding="utf-8-sig", newline="") as f:
+        return {_digits(r["product_barcode"]).lstrip("0"): r for r in csv.DictReader(f) if _digits(r.get("product_barcode"))}
+
+
+def completar(cap, local, vis, catalog):
+    """(resultado oficial, datos detectados). cap trae solo lo que escribió el usuario (todo opcional)."""
+    vis = vis or {}
+    d = vis.get("datos") or {}
+    # Las fotos suelen traer varios códigos (caja, etiqueta, empaque): se prefiere el que está en el catálogo
+    cands = [c for c in (*map(_code, local["barcodes"]), _code(d.get("codigo_barras"))) if c]
+    code = cap.get("capture_barcode") or next((c for c in cands if c.lstrip("0") in catalog), cands[0] if cands else None)
+    cat = catalog.get(code.lstrip("0")) if code else None
+    price = cap.get("capture_price") if cap.get("capture_price") is not None else _num(vis.get("precio_etiqueta"))
+    datos = {
+        "capture_store_name": cap.get("capture_store_name") or vis.get("cadena_visible"),
+        "capture_barcode": code,
+        "capture_price": price,
+        "capture_brand": cap.get("capture_brand") or d.get("marca"),
+        "product_name": cap.get("product_name") or (cat and cat["product_name"]) or d.get("producto"),
+        "unit_quantity_product": cap.get("unit_quantity_product") or (cat and _num(cat["unit_quantity_product"])) or _num(d.get("contenido")),
+        "unit_product": cap.get("unit_product") or (cat and cat["unit_product"]) or d.get("unidad"),
+    }
+    datos["fuente_producto"] = ("usuario" if cap.get("product_name") else "catalogo" if cat
+                                else "foto" if d.get("producto") else None)
+    full = dict(cap, capture_store_name=datos["capture_store_name"], capture_barcode=code, capture_price=price)
+    # Si el código no es uno de los decodificados (p. ej. se leyó del texto impreso o salió del catálogo), el JSON no debe
+    # reportar "falla" por los códigos de otras cajas: el elegido por el modo automático cuenta como leído de las fotos,
+    # y uno escrito por el usuario que no se pudo decodificar queda "no_evaluable".
+    if code and code.lstrip("0") not in {_digits(c).lstrip("0") for c in local["barcodes"]}:
+        local = dict(local, barcodes=[] if cap.get("capture_barcode") else [code])
+    return decide.decide(full, local, vis or None), datos
