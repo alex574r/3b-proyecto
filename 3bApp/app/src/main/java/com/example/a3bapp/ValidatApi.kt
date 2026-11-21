@@ -7,16 +7,22 @@ import android.net.Uri
 import android.util.Base64
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/** El servidor respondió con un código distinto de 2xx. */
+class HttpError(val code: Int, val body: String) : Exception("HTTP $code: ${body.take(200)}")
+
 /** Cliente de la API del motor (validat3b/server.py). Bloqueante: llamar desde Dispatchers.IO. */
 object ValidatApi {
+    private const val TOPE_MS = 100_000L // Cloudflare corta a los 100 s
+
     /** ImageDecoder aplica la orientación EXIF (el servidor ya no la ve tras recomprimir). */
-    private fun decode(cr: ContentResolver, uri: Uri, maxSide: Int): Bitmap =
-        ImageDecoder.decodeBitmap(ImageDecoder.createSource(cr, uri)) { dec, info, _ ->
+    private fun reducir(src: ImageDecoder.Source, maxSide: Int): Bitmap =
+        ImageDecoder.decodeBitmap(src) { dec, info, _ ->
             val s = maxSide.toFloat() / maxOf(info.size.width, info.size.height)
             if (s < 1f) dec.setTargetSize((info.size.width * s).toInt(), (info.size.height * s).toInt())
             dec.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
@@ -24,10 +30,14 @@ object ValidatApi {
 
     /** JPEG reducido a maxSide px para subirlo. */
     fun jpeg(cr: ContentResolver, uri: Uri, maxSide: Int = 1280): ByteArray =
-        ByteArrayOutputStream().also { decode(cr, uri, maxSide).compress(Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+        ByteArrayOutputStream().also {
+            reducir(ImageDecoder.createSource(cr, uri), maxSide).compress(Bitmap.CompressFormat.JPEG, 85, it)
+        }.toByteArray()
 
     /** Miniatura para mostrar en pantalla. */
-    fun thumb(cr: ContentResolver, uri: Uri): Bitmap = decode(cr, uri, 480)
+    fun thumb(cr: ContentResolver, uri: Uri): Bitmap = reducir(ImageDecoder.createSource(cr, uri), 480)
+
+    fun thumbFile(path: String): Bitmap = reducir(ImageDecoder.createSource(File(path)), 480)
 
     /** JWT HS256 de vida corta firmado con el secreto compartido con el servidor (VALIDAT3B_JWT_SECRET). */
     fun jwt(secret: String, ttlSec: Long = 300): String {
@@ -45,19 +55,23 @@ object ValidatApi {
         val conn = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
-            connectTimeout = 10_000
+            connectTimeout = 8_000
             readTimeout = 90_000 // el servidor espera a Haiku
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             headers.forEach { (k, v) -> setRequestProperty(k, v) }
         }
+        // Con mala señal la subida puede quedarse colgada sin que salte ningún timeout: tope total que corta el socket.
+        val watchdog = Thread { try { Thread.sleep(TOPE_MS); conn.disconnect() } catch (_: InterruptedException) {} }
+            .apply { isDaemon = true; start() }
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val ok = conn.responseCode in 200..299
             val text = (if (ok) conn.inputStream else conn.errorStream)
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (!ok) error("HTTP ${conn.responseCode}: $text")
+            if (!ok) throw HttpError(conn.responseCode, text)
             return text
         } finally {
+            watchdog.interrupt()
             conn.disconnect()
         }
     }
