@@ -129,6 +129,28 @@ def main():
     assert call(port, "/health")[0] == 200  # health nunca pide auth
     server.Handler.token = "s3cret"
     assert call(port, "/validar", ok, {"X-Api-Key": "s3cret"})[0] == 200
+    # Una captura enviada por Android llega al auditor con las fotos originales.
+    server.Handler.audit_token = "prueba-portal"
+    audit = {"X-Audit-Token": "prueba-portal", "Origin": "http://127.0.0.1:8123"}
+    ruta = "/auditoria/capturas"
+    assert call(port, ruta)[0] == 401
+    assert call(port, ruta, headers={**audit, "Origin": "https://otro.example"})[0] == 403
+    code, bandeja = call(port, ruta, headers=audit)
+    assert code == 200
+    caso = next(c for c in bandeja["casos"] if c["capture_id"] == "CAP-1")
+    assert caso["decision_esperada"] == "revision_manual" and caso["auditoria"] is None
+    assert raw(port, "/auditoria/imagenes/CAP-1_shelf.jpg")[0] == 401
+    assert raw(port, "/auditoria/imagenes/CAP-1_shelf.jpg", audit) == (200, base64.b64decode(img))
+    resolver = ruta + "/CAP-1/resolucion"
+    decision = {"estado": "rechazada", "motivo": "Precio no verificable", "nota": "Etiqueta ilegible", "revision": caso["revision"]}
+    assert call(port, resolver, {**decision, "revision": "anterior"}, audit)[0] == 409
+    assert call(port, resolver, {**decision, "nota": ""}, audit)[0] == 400
+    assert call(port, resolver, decision, audit)[0] == 201
+    assert call(port, resolver, decision, audit)[0] == 409
+    _, bandeja = call(port, ruta, headers=audit)
+    caso = next(c for c in bandeja["casos"] if c["capture_id"] == "CAP-1")
+    assert caso["auditoria"]["estado"] == "rechazada" and caso["decision_esperada"] == "revision_manual"
+    assert "auditoria" not in json.loads((server.Handler.json_dir / "CAP-1.json").read_text(encoding="utf-8"))
     srv.shutdown()
     print("OK")
 

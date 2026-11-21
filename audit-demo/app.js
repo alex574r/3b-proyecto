@@ -2,6 +2,73 @@ const main = document.querySelector('main');
 const menu = document.querySelector('#menu');
 const dialog = document.querySelector('#dialogo');
 
+const opcionesUrl = new URLSearchParams(location.search);
+const demo = opcionesUrl.get('modo') === 'demo';
+const api = new URL('https://api.jamp.digital');
+const prueba = opcionesUrl.get('api');
+if (prueba) {
+  const local = new URL(prueba);
+  if (['localhost', '127.0.0.1'].includes(local.hostname) && local.protocol === 'http:') api.href = local.origin;
+}
+document.querySelector('#modo').textContent = demo ? 'Demostración' : 'API de capturas';
+const enlaceModo = document.querySelector('#cambiar-modo');
+const otroModo = new URL(location.href);
+if (demo) otroModo.searchParams.delete('modo'); else otroModo.searchParams.set('modo', 'demo');
+otroModo.hash = 'resumen';
+enlaceModo.href = otroModo;
+enlaceModo.textContent = demo ? 'Abrir operación' : 'Ver demo';
+let credencial = '';
+let errorApi = '';
+let consultando = false;
+let vistaCargada = null;
+const fotosReales = new Map();
+
+async function peticion(path, opciones = {}) {
+  const r = await fetch(new URL(path, api), {
+    ...opciones, cache: 'no-store', credentials: 'omit', redirect: 'error',
+    headers: { 'X-Audit-Token': credencial, ...opciones.headers },
+  });
+  if (!r.ok) {
+    const detalle = await r.json().catch(() => ({}));
+    throw new Error(detalle.error || `HTTP ${r.status}`);
+  }
+  return r;
+}
+
+function limpiarFotos() {
+  vistaCargada = null;
+  for (const url of fotosReales.values()) URL.revokeObjectURL(url);
+  fotosReales.clear();
+}
+
+async function cargarFotos(caso) {
+  const version = caso.capture_id + caso.revision;
+  if (vistaCargada === version) return;
+  limpiarFotos();
+  vistaCargada = version;
+  for (const [clave, campo] of Object.entries({fachada:'facade', producto:'product', etiqueta:'shelf'})) {
+    if (!caso[campo + '_file']) continue;
+    try {
+      const r = await peticion(`/auditoria/imagenes/${caso.capture_id}_${campo}.jpg`);
+      const blob = await r.blob();
+      if (vistaCargada !== version) return;
+      fotosReales.set(clave, URL.createObjectURL(blob));
+    } catch {
+      if (vistaCargada !== version) return;
+    }
+  }
+  if (vistaCargada === version) render();
+}
+
+function accesoHtml() {
+  return `<section class="panel stack"><h1>Conectar con la API</h1>
+    <p>Introduce la credencial de auditoría del equipo para consultar las capturas.</p>
+    <form id="acceso" class="stack"><label class="field">Credencial de auditoría
+      <input type="password" name="token" autocomplete="off" required></label>
+      <button class="button primary">Conectar</button></form>
+    <p role="status">${escapeHtml(errorApi)}</p></section>`;
+}
+
 const estados = {
   revision_manual: { plural: 'Revisión manual', singular: 'Revisión manual', tono: 'pending', icono: 'clock' },
   aprobada: { plural: 'Aprobadas', singular: 'Aprobada', tono: 'success', icono: 'check' },
@@ -25,7 +92,7 @@ const hour = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digi
 
 let casos = [];
 let filtros = { ...defaultFilters };
-let resoluciones = cargarResoluciones();
+let resoluciones = demo ? cargarResoluciones() : new Map();
 let fotoActiva = 'etiqueta';
 let zoomEnDetalle = false;
 let carga = 'cargando';
@@ -52,8 +119,25 @@ function cargarResoluciones() {
   }
 }
 
-function guardarResolucion(caso, decision) {
+async function guardarResolucion(caso, decision) {
   if (estadoActual(caso) !== 'revision_manual') return;
+  if (!demo) {
+    const submit = dialog.querySelector('[type=submit]');
+    if (submit.disabled) return;
+    submit.disabled = true;
+    try {
+      const r = await peticion(`/auditoria/capturas/${caso.capture_id}/resolucion`, {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({...decision, revision:caso.revision})});
+      resoluciones.set(caso.capture_id, await r.json());
+      cerrarDialogo();
+      render();
+    } catch (e) {
+      let aviso = dialog.querySelector('[role=alert]');
+      if (!aviso) { aviso = document.createElement('p'); aviso.setAttribute('role','alert'); dialog.append(aviso); }
+      aviso.textContent = e.message;
+    } finally { submit.disabled = false; }
+    return;
+  }
   resoluciones.set(caso.capture_id, { ...decision, hora: hour.format(new Date()) });
   try {
     sessionStorage.setItem(storageKey, JSON.stringify(Object.fromEntries(resoluciones)));
@@ -83,6 +167,11 @@ function motivoVisible(caso) {
 }
 
 function totales() {
+  if (!demo) {
+    const total = {total:casos.length, aprobada:0, rechazada:0, revision_manual:0};
+    for (const caso of casos) total[estadoActual(caso)]++;
+    return total;
+  }
   const total = { ...resumen };
   for (const caso of casos) {
     const estado = estadoActual(caso);
@@ -139,11 +228,11 @@ function resumenHtml() {
   const total = totales();
   const metrica = (nombre, cantidad, detalle) => `
     <div class="metric panel"><dt>${nombre}</dt><dd><strong>${cantidad}</strong><small>${detalle}</small></dd></div>`;
-  const porcentaje = cantidad => `${(cantidad * 100 / total.total).toFixed(1)} % de las capturas`;
+  const porcentaje = cantidad => `${(total.total ? cantidad * 100 / total.total : 0).toFixed(1)} % de las capturas`;
   return `<div class="stack">
     <section class="banner">
       <div class="banner-copy">
-        <span class="badge">Últimos 7 días</span>
+        <span class="badge">${demo ? 'Últimos 7 días' : 'Registros del servidor'}</span>
         <h1>Resumen</h1>
         <p>Capturas de precio y revisión de evidencias en tienda.</p>
       </div>
@@ -153,7 +242,7 @@ function resumenHtml() {
       </div>
     </section>
     <dl class="metrics">
-      ${metrica('Capturas totales', total.total, 'Periodo de demostración')}
+      ${metrica('Capturas totales', total.total, demo ? 'Periodo de demostración' : 'Capturas registradas')}
       ${Object.entries(estados).map(([clave, datos]) => metrica(datos.plural, total[clave], porcentaje(total[clave]))).join('')}
     </dl>
     <div class="summary-grid">
@@ -161,8 +250,9 @@ function resumenHtml() {
         <div class="panel-header"><h2>Incidencias por categoría</h2>${icono('chart')}</div>
         <p class="muted">Una captura puede registrar más de una incidencia.</p>
         <div class="incidents">
-          ${[['Identidad', 26], ['Evidencia', 41], ['Precio', 16]].map(([nombre, valor]) =>
-            `<div><span>${nombre}<span>${valor}</span></span><progress max="41" value="${valor}" aria-label="${nombre}"></progress></div>`).join('')}
+          ${(demo ? [['Identidad',26],['Evidencia',41],['Precio',16]] :
+            Object.entries(validaciones).map(([k,n]) => [n,casos.filter(c => c.validaciones[k]==='falla').length])).map(([nombre, valor]) =>
+            `<div><span>${nombre}<span>${valor}</span></span><progress max="${demo ? 41 : Math.max(1,casos.length)}" value="${valor}" aria-label="${nombre}"></progress></div>`).join('')}
         </div>
       </section>
       <div class="stack">
@@ -173,7 +263,7 @@ function resumenHtml() {
           <small>Aprobaciones válidas sobre el total de aprobaciones auditadas.</small>
         </section>
         <section class="panel">
-          <div class="panel-header"><h3>Confianza promedio del motor</h3><strong class="percent">88.4 %</strong></div>
+          <div class="panel-header"><h3>Confianza promedio del motor</h3><strong class="percent"> ${demo ? '88.4 %' : casos.length ? (casos.reduce((n,c) => n+c.confidence_score,0)*100/casos.length).toFixed(1)+' %' : '—'}</strong></div>
           <small>Promedio de confidence_score en el periodo.</small>
         </section>
       </div>
@@ -207,7 +297,7 @@ function estadoBandeja(estado) {
     <td class="muted">${escapeHtml(caso.capture_store_name)}</td>
     <td><strong>${escapeHtml(motivoVisible(caso))}</strong></td>
     <td class="mono nowrap">${Math.round(caso.confidence_score * 100)} %</td>
-    <td class="muted nowrap">Hoy · ${escapeHtml(caso.recibida)}</td><td>${icono('chevron')}</td>
+    <td class="muted nowrap">${demo ? 'Hoy · ' : ''}${escapeHtml(caso.recibida)}</td><td>${icono('chevron')}</td>
   </tr>`).join('');
   const coincidencias = `${visibles.length} ${visibles.length === 1 ? 'captura' : 'capturas'} en vista`;
   return `<section class="panel list" aria-label="Resultados de búsqueda">
@@ -218,7 +308,7 @@ function estadoBandeja(estado) {
       ${campoBoton('Confianza', `${filtros.desde} % a ${filtros.hasta} % ⌄`, 'filtros')}
       <button class="button subtle" data-action="limpiar">Limpiar</button>
     </div>
-    <div class="list-head spaced"><small role="status">${coincidencias}</small><span class="badge unknown">Datos de demostración</span></div>
+    <div class="list-head spaced"><small role="status">${coincidencias}</small><span class="badge unknown">${demo ? 'Datos de demostración' : 'Datos de la API'}</span></div>
     ${filas ? `<div class="table-wrap"><table aria-label="Capturas">
       <thead><tr>${['Captura', 'Producto', 'Cadena', 'Motivo', 'Confianza', 'Recibida'].map(nombre => `<th scope="col">${nombre}</th>`).join('')}<th scope="col" aria-label="Abrir captura"></th></tr></thead>
       <tbody>${filas}</tbody></table></div>` : `<div class="empty">${icono('inbox')}<h2>Sin coincidencias</h2>
@@ -226,7 +316,7 @@ function estadoBandeja(estado) {
       <button class="button" data-action="limpiar">Limpiar filtros</button></div>`}
   </section>
   <div class="spaced list-foot"><small>Selecciona una fila para abrir el detalle.</small>
-    <button class="button subtle" data-action="simular-red">Simular error de red</button></div>`;
+    <button class="button subtle" data-action="${demo ? 'simular-red' : 'reintentar'}">${demo ? 'Simular error de red' : 'Actualizar'}</button></div>`;
 }
 
 function bandejaHtml(estado) {
@@ -249,6 +339,10 @@ function formatoPrecio(valor) {
 
 function marcado(caso, clave) {
   const { nombre } = evidencias[clave];
+  if (!demo) {
+    const url = fotosReales.get(clave);
+    return url ? `<img src="${url}" alt="Foto de ${nombre.toLowerCase()}">` : '<span>Foto pendiente o no disponible</span>';
+  }
   const reflejo = caso.reason_code === 'EVIDENCIA_AMBIGUA' && clave === 'etiqueta';
   return `<img class="${reflejo ? 'foto-con-reflejo' : ''}" src="demo-data/${clave}.png" alt="Foto de ${nombre.toLowerCase()}">
     ${reflejo ? '<span class="reflejo" aria-hidden="true"></span>' : ''}
@@ -264,7 +358,7 @@ function evidenciaHtml(caso) {
   const inline = permiteZoomEnDetalle(caso);
   return `<section class="panel stack">
     <div class="panel-header">
-      <div><h2>Evidencia de captura</h2><p class="muted">Revisa el área marcada en la foto.</p></div>
+      <div><h2>Evidencia de captura</h2><p class="muted">${demo ? 'Revisa el área marcada en la foto.' : 'Fotografías originales de esta captura.'}</p></div>
       ${inline
         ? `<button class="button" data-action="zoom-detalle" aria-pressed="${zoomEnDetalle}">${zoomEnDetalle ? 'Volver a 1×' : 'Ampliar 2×'}</button>`
         : `<button class="button" data-action="ampliar" aria-haspopup="dialog">Ampliar 2×</button>`}
@@ -275,7 +369,7 @@ function evidenciaHtml(caso) {
     <div class="thumbs" aria-label="Elegir evidencia">
       ${Object.entries(evidencias).map(([clave, { nombre, icono: pictograma }]) => `
         <button class="button thumbnail" data-photo="${clave}" aria-pressed="${clave === fotoActiva}">
-          <img src="demo-data/${clave}.png" alt=""><span>${icono(pictograma)}${nombre}</span>
+          ${demo || fotosReales.has(clave) ? `<img src="${demo ? 'demo-data/'+clave+'.png' : fotosReales.get(clave)}" alt="">` : ''}<span>${icono(pictograma)}${nombre}</span>
         </button>`).join('')}
     </div>
     <dl class="facts">${[
@@ -292,7 +386,7 @@ function evidenciaHtml(caso) {
             `<tr><td><strong>${campo}</strong></td><td class="mono">${escapeHtml(capturado)}</td><td class="mono">${escapeHtml(detectado)}</td></tr>`).join('')}
         </tbody>
       </table>
-      <small>Tipo de precio</small> <span class="badge ${caso.precio_detectado != null ? 'success' : 'unknown'}">${caso.precio_detectado != null ? 'Regular' : 'No evaluable'}</span>
+      <small>Tipo de precio</small> <span class="badge ${caso.precio_detectado != null ? 'success' : 'unknown'}">${demo ? (caso.precio_detectado != null ? 'Regular' : 'No evaluable') : (caso.precio_descuento != null ? 'Promoción' : 'Sin promoción confirmada')}</span>
     </div>
   </section>`;
 }
@@ -307,7 +401,7 @@ function dictamenHtml(caso) {
       <div><p class="micro">Confianza del motor</p><strong class="percent ${estado.tono}">${Math.round(caso.confidence_score * 100)} %</strong></div>
     </div>
     <dl class="validation">${Object.entries(validaciones).map(([clave, nombre]) => {
-      const [tono, texto] = chips[caso.validaciones[clave]];
+      const [tono, texto] = chips[caso.validaciones[clave]] ?? chips.no_evaluable;
       return `<div><dt>${nombre}</dt><dd class="badge ${tono}">${texto}</dd></div>`;
     }).join('')}</dl>
     <div><h3>Explicación</h3><p class="muted">${escapeHtml(caso.explicacion)}</p></div>
@@ -347,7 +441,7 @@ function detalleHtml(caso) {
   }
   const estado = estadoActual(caso);
   const decision = resoluciones.get(caso.capture_id);
-  const fecha = `${caso.capture_id} · ${caso.capture_store_name} · Recibida hoy, ${caso.recibida}`;
+  const fecha = `${caso.capture_id} · ${caso.capture_store_name} · Recibida ${demo ? 'hoy, ' : ''}${caso.recibida}`;
   return `<header class="page-header">
     <div><p class="micro eyebrow">Detalle de captura</p><h1>${escapeHtml(caso.product_name)}</h1><p class="mono muted">${escapeHtml(fecha)}</p></div>
     <a class="button" href="${rutaBandeja(detalleAnterior ?? estado)}">Volver a la bandeja</a>
@@ -449,6 +543,16 @@ function abrirResolucion(caso, tipo) {
 function render() {
   const destino = ruta();
   const caso = casos.find(item => item.capture_id === destino.id);
+  if (!demo) {
+    if (destino.pagina !== 'captura' && vistaCargada) limpiarFotos();
+    if (!credencial || carga !== 'lista') {
+      menu.innerHTML = '';
+      main.innerHTML = !credencial || carga === 'error' ? accesoHtml() : '<p role="status">Consultando la API…</p>';
+      main.setAttribute('aria-busy', String(!!credencial && carga === 'cargando'));
+      return;
+    }
+    if (caso) cargarFotos(caso);
+  }
   renderNav(destino, caso);
   if (destino.pagina === 'resumen') main.innerHTML = resumenHtml();
   else if (destino.pagina === 'bandeja') main.innerHTML = bandejaHtml(destino.estado);
@@ -457,6 +561,27 @@ function render() {
 }
 
 async function cargarCasos(simularEspera = false) {
+  if (!demo) {
+    if (!credencial || consultando) return;
+    consultando = true;
+    try {
+      const r = await peticion('/auditoria/capturas');
+      const {casos: registros} = await r.json();
+      const decisiones = new Map();
+      casos = registros.filter(c => /^[A-Za-z0-9_-]{1,64}$/.test(c.capture_id) && Object.hasOwn(estados,c.decision_esperada)).map(c => {
+        if (c.auditoria) decisiones.set(c.capture_id,c.auditoria);
+        return {...c, product_name:c.product_name || 'Producto sin identificar', capture_store_name:c.capture_store_name || 'Sin cadena',
+          titulo:c.motivo_rechazo || c.reason_code, validaciones:c.validaciones || {},
+          recibida:new Date(c.recibida).toLocaleString('es-MX',{timeZone:'America/Mexico_City'})};
+      });
+      resoluciones = decisiones;
+      carga = 'lista'; errorApi = '';
+    } catch (e) {
+      carga = 'error'; errorApi = 'No se pudo consultar la API. '+e.message;
+      casos=[]; resoluciones.clear(); limpiarFotos(); credencial='';
+    } finally { consultando = false; render(); }
+    return;
+  }
   if (simularEspera) {
     carga = 'cargando';
     render();
@@ -593,3 +718,13 @@ window.addEventListener('hashchange', () => {
 ultimaRuta = location.hash;
 render();
 cargarCasos();
+
+document.addEventListener('submit', event => {
+  if (event.target.id !== 'acceso') return;
+  event.preventDefault();
+  credencial = new FormData(event.target).get('token').trim();
+  carga = 'cargando'; errorApi = ''; render(); cargarCasos();
+});
+if (!demo) setInterval(() => {
+  if (credencial && !document.hidden && !dialog.open) cargarCasos();
+}, 15000);

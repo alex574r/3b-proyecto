@@ -21,13 +21,14 @@ import hmac
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from engine import auto, catalogo, decide, output, vision
+from engine import auditoria, auto, catalogo, decide, output, vision
 from engine.data import normalize
 from engine.local_checks import analyze
 
@@ -115,6 +116,57 @@ class Handler(BaseHTTPRequestHandler):
     img_dir = SALIDA / "imagenes"
     json_dir = SALIDA / "json"
 
+    audit_token = os.environ.get("VALIDAT3B_AUDIT_TOKEN") or os.environ.get("VALIDAT3B_TOKEN")
+    audit_origins = {x.strip() for x in os.environ.get("VALIDAT3B_AUDIT_ORIGINS",
+                     "http://127.0.0.1:8123,http://localhost:8123").split(",") if x.strip()}
+
+    def end_headers(self):
+        if self.path.startswith("/auditoria/"):
+            self.send_header("Vary", "Origin")
+            if self.headers.get("Origin") in self.audit_origins:
+                self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        if not self.path.startswith("/auditoria/") or self.headers.get("Origin") not in self.audit_origins:
+            return self._send(403, {"error": "Origen no permitido"})
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Audit-Token")
+        self.end_headers()
+
+    def _audit_access(self):
+        if not self.audit_token:
+            self._send(503, {"error": "Auditoría pendiente de configuración"})
+            return False
+        origen = self.headers.get("Origin")
+        if origen and origen not in self.audit_origins:
+            self._send(403, {"error": "Origen no permitido"})
+            return False
+        if not hmac.compare_digest(self.headers.get("X-Audit-Token", "").encode(), self.audit_token.encode()):
+            self._send(401, {"error": "Credencial de auditoría inválida"})
+            return False
+        return True
+
+    def _resolver(self, cid):
+        if not self._audit_access():
+            return
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+            if not 0 < n <= 16384:
+                return self._send(413, {"error": "Tamaño inválido"})
+            solicitud = json.loads(self.rfile.read(n))
+            if not isinstance(solicitud, dict):
+                raise ValueError()
+        except ValueError:
+            return self._send(400, {"error": "JSON inválido"})
+        try:
+            status, respuesta = auditoria.resolver(self.json_dir, cid, solicitud)
+        except (OSError, sqlite3.Error, ValueError, KeyError):
+            return self._send(500, {"error": "No se pudo guardar la resolución"})
+        self._send(status, respuesta)
+
     def _send(self, code, obj):
         data = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(code)
@@ -141,10 +193,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             return self._send(200, {"status": "ok", "llm": self.client is not None})
-        m = IMG_RE.match(self.path)
+        ruta = self.path
+        es_auditoria = ruta.startswith("/auditoria/")
+        if es_auditoria:
+            if not self._audit_access():
+                return
+            if ruta == "/auditoria/capturas":
+                try:
+                    casos = auditoria.listar(self.json_dir)
+                except (OSError, sqlite3.Error, ValueError, KeyError):
+                    return self._send(500, {"error": "No se pudo cargar la bandeja"})
+                return self._send(200, {"casos": casos})
+            ruta = ruta.removeprefix("/auditoria")
+        m = IMG_RE.fullmatch(ruta)
         if not m:
             return self._send(404, {"error": "no encontrado"})
-        if not self._authorized():
+        if not es_auditoria and not self._authorized():
             return self._send(401, {"error": "token inválido"})
         f = self.img_dir / m.group(1)
         if not f.is_file():
@@ -154,11 +218,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "image/jpeg")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("X-Content-Type-Options", "nosniff")  # el contenido lo subió un cliente: que no se interprete
-        self.send_header("Cache-Control", "private, max-age=3600")
+        if not es_auditoria:
+            self.send_header("Cache-Control", "private, max-age=3600")
         self.end_headers()
         self.wfile.write(data)
 
     def do_POST(self):
+        revision = re.fullmatch(r"/auditoria/capturas/([A-Za-z0-9_-]{1,64})/resolucion", self.path)
+        if revision:
+            return self._resolver(revision.group(1))
         modo_auto = {"/validar": False, "/analizar": True}.get(self.path)
         if modo_auto is None:
             return self._send(404, {"error": "no encontrado"})
@@ -189,11 +257,17 @@ class Handler(BaseHTTPRequestHandler):
             datos = auto.detectar(cap, [], None, self.catalog)
             fotos = fotos if guardadas else {}
         registro = auto.registro(datos, res, fotos)
-        try:  # el registro queda en disco; si falla, la respuesta al cliente no debe fallar
+        try:  # la web y el cliente deben referirse al mismo registro persistido
             self.json_dir.mkdir(parents=True, exist_ok=True)
-            (self.json_dir / f"{cid}.json").write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+            temporal = self.json_dir / f".{uuid.uuid4().hex}.tmp"
+            try:
+                temporal.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+                temporal.replace(self.json_dir / f"{cid}.json")
+            finally:
+                temporal.unlink(missing_ok=True)
         except OSError as e:
             print(f"No se pudo guardar el JSON de {cid}: {e}", file=sys.stderr)
+            return self._send(503, {"error": "No se pudo guardar el registro"})
         self._send(200, registro)
 
 

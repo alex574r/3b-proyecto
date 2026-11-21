@@ -155,3 +155,15 @@ r.raise_for_status()
 print(r.json()["decision_esperada"], r.json()["motivo_rechazo"], r.json()["precio_descuento"])
 ```
 Cliente Android de referencia: `3bApp/app/src/main/java/com/example/a3bapp/ValidatApi.kt`.
+
+## Portal de auditoría
+
+Las tres rutas usan `X-Audit-Token` según la [guía de integración](../INTEGRACION_IMAGENES.md).
+
+| Método y ruta | Resultado |
+|---|---|
+| GET /auditoria/capturas | Objeto con una lista `casos` ordenada desde la recepción más reciente. Cada registro incluye `revision`, `recibida` y una posible `auditoria`. |
+| GET /auditoria/imagenes/{id}_{facade,product,shelf}.jpg | JPEG de la evidencia original. |
+| POST /auditoria/capturas/{id}/resolucion | Enviar `revision`, `estado` (aprobada o rechazada), `motivo` y `nota`. Un rechazo requiere motivo y nota. El 201 confirma la decisión persistida. El 409 indica que cambió la evidencia, que el caso no está pendiente o que ya se resolvió. |
+
+Las resoluciones se almacenan separadas de los dictámenes en `salida_api/auditoria.sqlite`. Si se reemplaza el contenido de un registro con el mismo ID, su versión cambia y requiere una nueva revisión.

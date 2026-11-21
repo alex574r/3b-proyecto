@@ -63,13 +63,6 @@ object CapturaRepo {
     fun contarPendientes(ctx: Context) = dao(ctx).contarPendientes()
     suspend fun hayPendientes(ctx: Context) = dao(ctx).idsPendientes().isNotEmpty()
 
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences("config", Context.MODE_PRIVATE)
-    fun apiUrl(ctx: Context): String = prefs(ctx).getString("api_url", null) ?: BuildConfig.API_URL
-
-    /** Solo para builds debug (MainActivity): apunta a un servidor local. null vuelve a la URL de producción. */
-    fun setApiUrl(ctx: Context, url: String?) =
-        prefs(ctx).edit().also { if (url == null) it.remove("api_url") else it.putString("api_url", url) }.apply()
-
     fun enLinea(ctx: Context): Boolean {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
@@ -127,7 +120,7 @@ object CapturaRepo {
                 "shelf" to File(c.etiqueta).readBytes(),
             )
             // La respuesta es un registro con la forma de capturas.json (+ detalle del motor al final)
-            val r = JSONObject(ValidatApi.analizar(apiUrl(ctx), c.campos(), fotos))
+            val r = JSONObject(ValidatApi.analizar(BuildConfig.API_URL, c.campos(), fotos))
             dao.actualizar(
                 c.copy(
                     estado = Estado.ENVIADA, intentos = previos + 1, error = null,

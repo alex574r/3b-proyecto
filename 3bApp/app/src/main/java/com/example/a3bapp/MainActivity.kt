@@ -34,9 +34,6 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(0, 0),
             navigationBarStyle = SystemBarStyle.light(0, 0),
         )
-        if (BuildConfig.DEBUG) {
-            intent.getStringExtra("api_url")?.let { CapturaRepo.setApiUrl(this, it.takeUnless { u -> u == "default" }) }
-        }
         CapturaRepo.retomarPendientes(this)
         setContent { _3bAppTheme { App() } }
     }
