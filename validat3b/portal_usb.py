@@ -10,10 +10,11 @@ import sys
 import tempfile
 import threading
 import time
+from http.client import HTTPException, HTTPSConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from server import Handler, ID_RE, PHOTOS
+from server import Handler, ID_RE, IMG_RE, MAX_BODY, PHOTOS
 
 PACKAGE = "com.example.a3bapp"
 DB = "databases/3bapp.db"
@@ -94,7 +95,8 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--port", type=int, default=18124)
     args = parser.parse_args()
-    clave = os.environ.pop("VALIDAT3B_AUDIT_TOKEN", "") or os.environ.pop("VALIDAT3B_TOKEN", "")
+    clave_api = os.environ.pop("VALIDAT3B_TOKEN", "")
+    clave = os.environ.pop("VALIDAT3B_AUDIT_TOKEN", "") or clave_api
     if not clave and sys.stdin.isatty():
         clave = getpass.getpass("Credencial de acceso al portal USB: ").strip()
     if not clave:
@@ -108,6 +110,41 @@ def main():
         audit_token = clave
         json_dir = salida / "json"
         img_dir = salida / "imagenes"
+
+        def end_headers(self):
+            if clave_api and self.path == "/auditoria/capturas":
+                self.send_header("X-Consulta-Folio", "1")
+            super().end_headers()
+
+        def do_GET(self):
+            if not self.path.startswith("/auditoria/remota/"):
+                return super().do_GET()
+            if not self._audit_access():
+                return
+            ruta = "/imagenes/" + self.path.removeprefix("/auditoria/remota/")
+            if not clave_api or not IMG_RE.fullmatch(ruta):
+                return self._send(404, {"error": "Evidencia no disponible."})
+            conn = HTTPSConnection("api.jamp.digital", timeout=10)
+            try:
+                conn.request("GET", ruta, headers={"X-Api-Key": clave_api, "User-Agent": "Validat3B-Portal/1.0"})
+                respuesta = conn.getresponse()
+                if respuesta.status == 404:
+                    return self._send(404, {"error": "La API no encontró esta foto. Revisa el folio en Historial."})
+                if respuesta.status != 200 or respuesta.getheader("Content-Type", "").split(";")[0] != "image/jpeg":
+                    return self._send(502, {"error": "La API no pudo entregar la evidencia."})
+                foto = respuesta.read(MAX_BODY + 1)
+                if len(foto) > MAX_BODY or not foto.startswith(b"\xff\xd8"):
+                    return self._send(502, {"error": "La API devolvió una imagen inválida."})
+            except (OSError, HTTPException):
+                return self._send(502, {"error": "No se pudo conectar con la API pública."})
+            finally:
+                conn.close()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(foto)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(foto)
 
         def _authorized(self):
             return False  # Las fotos privadas de esta copia usan el acceso de auditoría.

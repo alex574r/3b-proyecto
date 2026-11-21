@@ -22,6 +22,7 @@ let credencial = '';
 let errorApi = '';
 let consultando = false;
 let vistaCargada = null;
+let consultaPorFolio = false;
 const fotosReales = new Map();
 
 async function peticion(path, opciones = {}) {
@@ -212,6 +213,7 @@ function renderNav(destino, caso) {
       <p class="micro">Operación</p>
       ${enlaceNav('Resumen', '#resumen', 'chart', destino.pagina === 'resumen')}
       ${enlaceNav('Bandeja', rutaBandeja('revision_manual'), 'inbox', false, destino.pagina !== 'resumen')}
+      ${consultaPorFolio ? '<button class="button" type="button" data-action="consultar-folio">Consultar otro folio</button>' : ''}
     </div>
     <div class="nav-group">
       <p class="micro">Estados</p>
@@ -484,6 +486,54 @@ function abrirBusqueda() {
   </form>`, 'filter');
 }
 
+function abrirConsultaFolio(id = '') {
+  mostrarDialogo(`<form class="stack" data-form="folio">
+    <h2 id="dialog-title">Consultar otro folio</h2>
+    <label class="field">ID de la captura enviada<input autofocus required name="folio" maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" placeholder="APP-…"></label>
+    ${dialogFooter('Ver evidencia')}<div role="status"></div></form>`, 'zoom');
+  if (id) {
+    const form = dialog.querySelector('form');
+    form.elements.folio.value = id;
+    consultarFolio(form);
+  }
+}
+
+async function consultarFolio(form) {
+  const id = form.elements.folio.value.trim().replace(/^app-/i, 'APP-');
+  if (casos.some(c => c.capture_id === id)) {
+    cerrarDialogo();
+    location.hash = '#captura/' + id;
+    return;
+  }
+  form.querySelector('[type=submit]').disabled = true;
+  const resultado = form.querySelector('[role=status]');
+  resultado.textContent = 'Consultando las fotos guardadas en la API…';
+  const urls = [];
+  dialog.addEventListener('close', () => urls.forEach(url => URL.revokeObjectURL(url)), {once:true});
+  try {
+    const fotos = await Promise.all(['facade', 'product', 'shelf'].map(async tipo =>
+      (await peticion('/auditoria/remota/' + id + '_' + tipo + '.jpg')).blob()));
+    if (!dialog.open || !form.isConnected) return;
+    resultado.textContent = 'Evidencias de ' + id + '. El dictamen completo está en el historial del equipo que lo envió.';
+    fotos.forEach((foto, i) => {
+      const figura = document.createElement('figure');
+      const etiqueta = document.createElement('figcaption');
+      etiqueta.textContent = ['Fachada', 'Producto', 'Etiqueta de precio'][i];
+      const img = new Image();
+      img.alt = etiqueta.textContent;
+      img.style.maxHeight = '260px';
+      img.src = URL.createObjectURL(foto);
+      urls.push(img.src);
+      figura.append(etiqueta, img);
+      resultado.append(figura);
+    });
+  } catch (error) {
+    resultado.textContent = error.message;
+  } finally {
+    form.querySelector('[type=submit]').disabled = false;
+  }
+}
+
 function opciones(values, selected) {
   return values.map(value => `<option ${value === selected ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('');
 }
@@ -559,6 +609,11 @@ function render() {
   else if (destino.pagina === 'bandeja') main.innerHTML = bandejaHtml(destino.estado);
   else main.innerHTML = detalleHtml(caso);
   main.setAttribute('aria-busy', String(carga === 'cargando' && destino.pagina !== 'resumen'));
+  const folio = location.hash.match(/^#folio\/([A-Za-z0-9_-]{1,64})$/);
+  if (consultaPorFolio && folio && !dialog.open) {
+    history.replaceState(null, '', location.pathname + location.search + '#resumen');
+    abrirConsultaFolio(folio[1]);
+  }
 }
 
 async function cargarCasos(simularEspera = false) {
@@ -567,6 +622,7 @@ async function cargarCasos(simularEspera = false) {
     consultando = true;
     try {
       const r = await peticion('/auditoria/capturas');
+      consultaPorFolio = r.headers.get('X-Consulta-Folio') === '1';
       const {casos: registros} = await r.json();
       const decisiones = new Map();
       casos = registros.filter(c => /^[A-Za-z0-9_-]{1,64}$/.test(c.capture_id) && Object.hasOwn(estados,c.decision_esperada)).map(c => {
@@ -611,6 +667,7 @@ document.addEventListener('click', event => {
   if (!control) return;
   const accion = control.dataset.action;
   const caso = casos.find(item => item.capture_id === ruta().id);
+  if (accion === 'consultar-folio') abrirConsultaFolio();
   if (accion === 'buscar') abrirBusqueda();
   if (accion === 'filtros') abrirFiltros();
   if (accion === 'limpiar') {
@@ -664,6 +721,7 @@ dialog.addEventListener('submit', event => {
   const form = event.target;
   const data = new FormData(form);
   const accion = form.dataset.form;
+  if (accion === 'folio') { consultarFolio(form); return; }
   if (accion === 'buscar') {
     filtros.query = String(data.get('query')).trim();
     cerrarDialogo();

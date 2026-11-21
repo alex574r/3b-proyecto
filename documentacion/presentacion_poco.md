@@ -46,6 +46,8 @@ Sustituye `<serie-del-POCO>` por el identificador de la primera columna. En una 
 3. Abre **Historial**. Cuando marque **Enviada**, abre el resultado y lee su `capture_id`. Este estado confirma que el servidor contestó. El dictamen puede ser aprobación, rechazo o revisión manual.
 4. En la computadora abre **Revisión manual**, **No aprobadas** o **Aprobadas** según ese dictamen. Busca el ID y abre la ficha. Muestra la foto de producto, la etiqueta y la explicación. En un caso dudoso, el auditor puede registrar una resolución separada del dictamen original.
 
+Si la captura se envió desde otro teléfono, usa **Consultar otro folio** e introduce el ID exacto de su historial. Con `VALIDAT3B_TOKEN` configurado, el portal USB consulta las tres fotos en la API pública. El dictamen de ese otro teléfono se consulta en su historial hasta que esté disponible la bandeja central. Esta consulta de fotos no vuelve a ejecutar el modelo.
+
 ## Si algo tarda
 
 - **Pendiente en el teléfono.** Comprueba internet y deja la captura en la cola. Si el historial muestra **Error**, abre el detalle antes de reintentar.
