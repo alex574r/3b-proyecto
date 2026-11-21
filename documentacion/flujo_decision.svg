@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 620" font-family="Segoe UI, Arial, sans-serif">
+  <title>Flujo de decisión: aprobar, rechazar o revisión manual</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+  <rect width="820" height="620" fill="#ffffff"/>
+
+  <!-- Inicio -->
+  <rect x="150" y="15" width="300" height="42" rx="21" fill="#e8f1fa" stroke="#1f4e79" stroke-width="1.5"/>
+  <text x="300" y="40" font-size="13" font-weight="700" text-anchor="middle" fill="#1f2937">Captura: 3 fotos + datos</text>
+
+  <!-- Decisiones -->
+  <g fill="#fffbea" stroke="#8a6d00" stroke-width="1.5">
+    <path d="M300,92 L450,140 L300,188 L150,140 Z"/>
+    <path d="M300,226 L450,274 L300,322 L150,274 Z"/>
+    <path d="M300,360 L450,412 L300,464 L150,412 Z"/>
+  </g>
+  <g fill="#1f2937" font-size="12" text-anchor="middle" font-weight="600">
+    <text x="300" y="136">¿Error interno o sin</text><text x="300" y="152">análisis visual?</text>
+    <text x="300" y="270">¿Rechazo firme</text><text x="300" y="286">por calidad?</text>
+    <text x="300" y="398">¿7 datos completos,</text><text x="300" y="414">7 criterios en ok y</text><text x="300" y="430">nitidez medida ≥ 180?</text>
+  </g>
+
+  <!-- Resultados -->
+  <rect x="560" y="116" width="240" height="56" rx="8" fill="#fff4e0" stroke="#b26a00" stroke-width="1.5"/>
+  <rect x="560" y="242" width="240" height="64" rx="8" fill="#fdecea" stroke="#c62828" stroke-width="1.5"/>
+  <rect x="560" y="382" width="240" height="60" rx="8" fill="#e9f7ef" stroke="#2e7d32" stroke-width="1.5"/>
+  <rect x="150" y="500" width="300" height="70" rx="8" fill="#fff4e0" stroke="#b26a00" stroke-width="1.5"/>
+  <g fill="#1f2937" text-anchor="middle">
+    <text x="680" y="140" font-size="13" font-weight="700" fill="#8a4b00">REVISIÓN MANUAL</text>
+    <text x="680" y="158" font-size="10">ERROR_PROCESAMIENTO · SIN_ANALISIS_VISUAL</text>
+
+    <text x="680" y="264" font-size="13" font-weight="700" fill="#b71c1c">RECHAZADA</text>
+    <text x="680" y="281" font-size="10">FOTO_DE_PANTALLA · IMAGEN_BORROSA</text>
+    <text x="680" y="295" font-size="10">CAPTURA_LEJANA · SIN_ETIQUETA_PRECIO</text>
+
+    <text x="680" y="406" font-size="13" font-weight="700" fill="#1b5e20">APROBADA</text>
+    <text x="680" y="423" font-size="10">solo API, app y ventana</text>
+    <text x="680" y="436" font-size="10">run.py no aprueba</text>
+
+    <text x="300" y="524" font-size="13" font-weight="700" fill="#8a4b00">REVISIÓN MANUAL</text>
+    <text x="300" y="541" font-size="10">EVIDENCIA_AMBIGUA · CANDIDATA_APROBACION</text>
+    <text x="300" y="555" font-size="10">duda, identidad de producto o precio</text>
+  </g>
+
+  <!-- Flechas -->
+  <g stroke="#4b5563" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M300,57 V90"/>
+    <path d="M450,140 H558"/><path d="M300,188 V224"/>
+    <path d="M450,274 H558"/><path d="M300,322 V358"/>
+    <path d="M450,412 H558"/><path d="M300,464 V498"/>
+  </g>
+  <g fill="#374151" font-size="11" font-weight="700">
+    <text x="498" y="133">Sí</text><text x="308" y="210">No</text>
+    <text x="498" y="267">Sí</text><text x="308" y="344">No</text>
+    <text x="498" y="405">Sí</text><text x="308" y="484">No</text>
+  </g>
+
+  <!-- Pie: costos -->
+  <rect x="20" y="588" width="780" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="410" y="605" font-size="11" text-anchor="middle" fill="#1f2937">Costo por captura: acierto 0 · revisión manual 1 · rechazar una válida 3 · aprobar una inválida 10 → ante la duda, revisión manual</text>
+</svg>

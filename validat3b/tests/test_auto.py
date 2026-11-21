@@ -50,7 +50,7 @@ def main():
     assert list(d) == ["capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price",
                        "capture_brand", "id_product", "product_name", "product_barcode", "product_price",
                        "min_product_price", "max_product_price", "unit_product", "unit_quantity_product",
-                       "product_group", "product_line", "precio_descuento", "fuente_producto"]
+                       "product_group", "product_line", "precio_descuento", "fuente_producto", "fuente_catalogo"]
     assert d["capture_id"] == "APP-1" and d["id_product"] == 5055 and d["product_barcode"] == "0763331024755"
     assert (d["product_price"], d["min_product_price"], d["max_product_price"]) == (14.0, 0.0, 28.0)
     assert d["product_group"] == "(29) Pets" and d["product_line"] == "(04) Accesorios"
@@ -66,7 +66,7 @@ def main():
     res, d = auto.completar(cap, LOCAL, VIS, catalog)
     fotos = {k: (f"imagenes/APP-1_{k}.jpg", f"https://x/imagenes/APP-1_{k}.jpg") for k in ("facade", "product", "shelf")}
     r = auto.registro(d, res, fotos)
-    assert list(r)[:len(auto.REGISTRO)] == list(auto.REGISTRO) and list(r)[-1] == "fuente_producto"
+    assert list(r)[:len(auto.REGISTRO)] == list(auto.REGISTRO) and list(r)[-2:] == ["fuente_producto", "fuente_catalogo"] and r["fuente_catalogo"] == "codigo_barras"
     assert r["capture_barcode"] == 763331024755 and r["product_barcode"] == 763331024755 and r["id_product"] == 5055
     assert r["facade_file"] == "imagenes/APP-1_facade.jpg" and r["shelf_url"] == "https://x/imagenes/APP-1_shelf.jpg"
     assert r["decision_esperada"] == res["decision"] and r["motivo_rechazo"] == ""

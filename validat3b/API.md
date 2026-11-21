@@ -105,6 +105,9 @@ Detalle del motor (después de `motivo_rechazo`):
   `CAPTURA_LEJANA`, `FACHADA_INCORRECTA`, `SIN_ETIQUETA_PRECIO`, `DESCRIPCION_INCOMPLETA`, `EVIDENCIA_AMBIGUA`,
   `CANDIDATA_APROBACION`, `SIN_ANALISIS_VISUAL`, `ERROR_PROCESAMIENTO`.
 - `fuente_producto`: de dónde salió `product_name`: `usuario` | `catalogo` | `foto` | `null`.
+- `fuente_catalogo`: cómo se encontró el producto en el catálogo para rellenar `id_product`, `product_barcode`, los precios de
+  referencia, `product_group` y `product_line`: `id_product` (si el cliente lo manda) | `codigo_barras` | `nombre` (nombre + contenido,
+  solo si la coincidencia es clara; gramo y mililitro cuentan como compatibles) | `null` (no se encontró: esos campos quedan en `null`).
 - La parte oficial del reto (`capture_id`, `decision` = `decision_esperada`, `confidence_score`, `reason_code`, `validaciones`,
   `precio_detectado`, `codigo_barras_detectado`, `explicacion`) se reconstruye con `engine.auto.oficial(registro)`. El archivo del set
   ciego lo sigue generando `run.py` en el formato oficial; este registro es solo la respuesta de la API.

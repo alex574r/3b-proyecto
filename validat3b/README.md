@@ -65,6 +65,18 @@ prueba sin red: `python tests/test_carpeta.py`.
 La API también guarda cada registro que devuelve en `salida_api/json/<capture_id>.json` (y las fotos en `salida_api/imagenes/`).
 Las carpetas `salida*/` las ignora git porque contienen datos de 3B.
 
+## Rellenar nulos desde el catálogo
+```powershell
+python rellenar.py salida_api\json --dry-run     # solo cuenta lo que se rellenaría
+python rellenar.py salida_api\json               # un archivo .json o una carpeta (registro, lista o exportación de la ventana)
+python rellenar.py salida_carpetas --catalogo ..\Validat3B_evaluacion_metadatos\catalogo_productos.csv
+```
+Busca el producto por `id_product`, código de barras o, si no hay, nombre y contenido (solo coincidencias claras) y rellena
+únicamente los campos que estén en `null`; nunca pisa un valor. Deja `fuente_catalogo` con el método usado. El mismo criterio
+se aplica solo en los análisis nuevos (API, app y ventana). Con las 150 capturas de dev y ciego: por código o id acierta las 150;
+solo por nombre y contenido acierta 142, se equivoca 0 y deja 8 sin rellenar. Catálogo por defecto: `VALIDAT3B_CATALOGO`, o el de
+`Validat3B_evaluacion_metadatos`, o el de desarrollo. Lógica en `engine/catalogo.py`; prueba: `python tests/test_catalogo.py`.
+
 ## API pública (https://api.jamp.digital) — contrato completo en [API.md](API.md)
 Túnel de Cloudflare `validat3b` → `http://127.0.0.1:8000` (config en `%USERPROFILE%\.cloudflared\config.yml`).
 ```powershell

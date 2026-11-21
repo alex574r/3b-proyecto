@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 540" font-family="Segoe UI, Arial, sans-serif">
+  <title>Arquitectura del motor de validación de capturas</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+  <rect width="920" height="540" fill="#ffffff"/>
+
+  <!-- Clientes -->
+  <g stroke="#1f4e79" stroke-width="1.5" fill="#e8f1fa">
+    <rect x="30" y="30" width="200" height="70" rx="8"/>
+    <rect x="250" y="30" width="200" height="70" rx="8"/>
+    <rect x="470" y="30" width="200" height="70" rx="8"/>
+    <rect x="690" y="30" width="200" height="70" rx="8"/>
+  </g>
+  <g fill="#1f2937" font-size="11" text-anchor="middle">
+    <text x="130" y="54" font-size="13" font-weight="700">App Android</text>
+    <text x="130" y="72">Compose · Room · WorkManager</text>
+    <text x="130" y="88">offline-first, reenvío automático</text>
+    <text x="350" y="54" font-size="13" font-weight="700">Bruno / cliente HTTP</text>
+    <text x="350" y="72">POST /validar · /analizar</text>
+    <text x="350" y="88">X-Api-Key o JWT</text>
+    <text x="570" y="54" font-size="13" font-weight="700">Ventana tkinter</text>
+    <text x="570" y="72">analiza carpetas de fotos</text>
+    <text x="570" y="88">exporta un JSON consolidado</text>
+    <text x="790" y="54" font-size="13" font-weight="700">run.py (set ciego)</text>
+    <text x="790" y="72">genera el JSON oficial del reto</text>
+    <text x="790" y="88">no aprueba</text>
+  </g>
+
+  <!-- API -->
+  <rect x="30" y="140" width="420" height="62" rx="8" fill="#fff4e0" stroke="#b26a00" stroke-width="1.5"/>
+  <g fill="#1f2937" font-size="11" text-anchor="middle">
+    <text x="240" y="162" font-size="13" font-weight="700">API HTTP · server.py (Python)</text>
+    <text x="240" y="180">api.jamp.digital · túnel de Cloudflare → este PC</text>
+    <text x="240" y="195">autenticación: token fijo o JWT HS256</text>
+  </g>
+
+  <!-- Flechas clientes -> API / motor -->
+  <g stroke="#4b5563" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M130,100 V138"/>
+    <path d="M350,100 V138"/>
+    <path d="M240,202 V238"/>
+    <path d="M570,100 V238"/>
+    <path d="M790,100 V238"/>
+  </g>
+
+  <!-- Motor -->
+  <rect x="30" y="240" width="860" height="180" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="46" y="262" font-size="13" font-weight="700" fill="#1f2937">Motor · engine/ (Python)</text>
+
+  <g stroke-width="1.5">
+    <rect x="45" y="276" width="195" height="130" rx="8" fill="#e9f7ef" stroke="#2e7d32"/>
+    <rect x="255" y="276" width="195" height="130" rx="8" fill="#eef2ff" stroke="#3949ab"/>
+    <rect x="465" y="276" width="195" height="130" rx="8" fill="#f3e8fd" stroke="#7b1fa2"/>
+    <rect x="675" y="276" width="195" height="130" rx="8" fill="#fdecea" stroke="#c62828"/>
+  </g>
+  <g fill="#1f2937" font-size="11" text-anchor="middle">
+    <text x="142" y="298" font-size="12" font-weight="700">1 · Chequeos locales</text>
+    <text x="142" y="320">OpenCV: nitidez y moiré</text>
+    <text x="142" y="337">zxing-cpp: códigos de barras</text>
+    <text x="142" y="354">sin tokens, ~1 s por captura</text>
+
+    <text x="352" y="298" font-size="12" font-weight="700">2 · Visión con IA</text>
+    <text x="352" y="320">Claude Haiku 5.5</text>
+    <text x="352" y="337">3 fotos ≤ 1024 px, 1 llamada</text>
+    <text x="352" y="354">7 criterios, precios y datos</text>
+    <text x="352" y="371">~3.9k tokens por captura</text>
+
+    <text x="562" y="298" font-size="12" font-weight="700">3 · Catálogo</text>
+    <text x="562" y="320">135 SKU (CSV)</text>
+    <text x="562" y="337">id → código → nombre+contenido</text>
+    <text x="562" y="354">rellena los campos en null</text>
+
+    <text x="772" y="298" font-size="12" font-weight="700">4 · Reglas de decisión</text>
+    <text x="772" y="320">rechazar → aprobar → manual</text>
+    <text x="772" y="337">costos 0 · 1 · 3 · 10</text>
+    <text x="772" y="354">ante la duda: revisión manual</text>
+  </g>
+  <g stroke="#4b5563" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M240,341 H253"/>
+    <path d="M450,341 H463"/>
+    <path d="M660,341 H673"/>
+  </g>
+
+  <!-- Fila inferior -->
+  <rect x="30" y="452" width="195" height="62" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <rect x="255" y="452" width="195" height="62" rx="8" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+  <rect x="465" y="452" width="425" height="62" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="1.5"/>
+  <g fill="#1f2937" font-size="11" text-anchor="middle">
+    <text x="127" y="476" font-size="12" font-weight="700">Guardado local</text>
+    <text x="127" y="493">salida_api/ · salida_carpetas/</text>
+    <text x="127" y="507">(ignorado por git)</text>
+    <text x="352" y="476" font-size="12" font-weight="700">Azure AI Foundry</text>
+    <text x="352" y="493">endpoint asignado al equipo</text>
+    <text x="352" y="507">única IA externa usada</text>
+    <text x="677" y="476" font-size="12" font-weight="700">Salida: JSON validado y auditable</text>
+    <text x="677" y="493">decision · confidence_score · reason_code · validaciones</text>
+    <text x="677" y="507">precios · explicación · si algo falla: revision_manual válido</text>
+  </g>
+  <g stroke="#4b5563" stroke-width="1.6" fill="none">
+    <path d="M352,406 V450" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M772,406 V450" marker-end="url(#a)"/>
+    <path d="M127,406 V450" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  </g>
+</svg>

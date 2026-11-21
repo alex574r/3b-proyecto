@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ficha técnica · Validat3B</title>
+<style>
+  @page { size: A4; margin: 9mm; }
+  :root { --ink:#1f2937; --muted:#4b5563; --line:#d1d5db; --brand:#1f4e79; --ok:#2e7d32; --no:#c62828; --man:#8a4b00; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font: 8.6pt/1.32 "Segoe UI", Arial, sans-serif; color: var(--ink); background: #fff; }
+  .page { width: 192mm; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--brand); padding-bottom: 2mm; margin-bottom: 3mm; display: flex; justify-content: space-between; align-items: baseline; gap: 6mm; }
+  h1 { margin: 0; font-size: 15pt; color: var(--brand); }
+  header p { margin: 0; color: var(--muted); font-size: 8pt; text-align: right; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 5mm; }
+  h2 { margin: 2.6mm 0 1mm; font-size: 9.6pt; color: var(--brand); border-bottom: 1px solid var(--line); padding-bottom: .6mm; }
+  h2:first-child { margin-top: 0; }
+  p { margin: 0 0 1.2mm; }
+  ol, ul { margin: 0 0 1.2mm; padding-left: 4.2mm; }
+  li { margin-bottom: .7mm; }
+  img { width: 100%; display: block; margin: 1mm 0 1.2mm; }
+  .tag { display: inline-block; padding: 0 1.6mm; border-radius: 2mm; font-weight: 700; font-size: 7.8pt; color: #fff; }
+  .ok { background: var(--ok); } .no { background: var(--no); } .man { background: var(--man); }
+  table { width: 100%; border-collapse: collapse; margin: .8mm 0 1.4mm; font-size: 8pt; }
+  th, td { border: 1px solid var(--line); padding: .6mm 1.4mm; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; }
+  .note { color: var(--muted); font-size: 7.8pt; }
+  footer { margin-top: 2.5mm; padding-top: 1.2mm; border-top: 1px solid var(--line); color: var(--muted); font-size: 7.6pt; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Validat3B · Motor de validación de capturas de precio</h1>
+    <p>Ficha técnica · IA (Claude Haiku 5.5 en Azure AI Foundry) + reglas auditables</p>
+  </header>
+
+  <div class="grid">
+    <!-- Columna izquierda -->
+    <section>
+      <h2>1 · Qué hace</h2>
+      <p>Recibe las 3 fotos de una captura (fachada, producto y etiqueta de precio) y sus datos, y devuelve un <b>JSON auditable</b>
+      con la decisión (<span class="tag ok">aprobada</span> <span class="tag no">rechazada</span> <span class="tag man">revisión manual</span>),
+      el motivo, la confianza, el precio detectado y, si hay, el precio de oferta. Está diseñado para <b>no aprobar una captura incorrecta</b>:
+      es el error más caro.</p>
+
+      <h2>2 · Cómo funciona</h2>
+      <img src="arquitectura.svg" alt="Diagrama de arquitectura del motor">
+      <ol>
+        <li><b>Chequeos locales, sin tokens:</b> nitidez (varianza del Laplaciano), moiré (FFT) y códigos de barras (zxing-cpp).</li>
+        <li><b>Una llamada a Claude Haiku 5.5</b> con las 3 fotos reducidas a 1024 px. La IA <i>extrae</i>, no decide: califica 7 criterios
+        (fachada, pantalla, nitidez, cercanía, producto, etiqueta y precio) en ok / falla / dudoso, y lee precios y datos del producto.</li>
+        <li><b>Catálogo de 135 SKU:</b> completa id, precios de referencia, grupo y línea por id, código o nombre + contenido
+        (solo coincidencias claras; con duda no rellena).</li>
+        <li><b>Reglas deterministas</b> deciden y arman el JSON. Se valida el formato; si algo falla, siempre sale un
+        <code>revision_manual</code> válido.</li>
+      </ol>
+
+      <h2>3 · Tecnologías</h2>
+      <ul>
+        <li><b>IA:</b> Claude Haiku 5.5 vía Azure AI Foundry (SDK <code>anthropic</code>); es la única IA externa usada.</li>
+        <li><b>Motor y API:</b> Python 3.12, OpenCV, zxing-cpp, Pillow/NumPy; servidor HTTP estándar con token o JWT HS256.</li>
+        <li><b>Clientes:</b> app Android (Kotlin, Compose, Room, WorkManager, offline-first), ventana tkinter para analizar carpetas y Bruno.</li>
+        <li><b>Despliegue:</b> túnel de Cloudflare (<code>api.jamp.digital</code>) hacia el equipo; 5 suites de pruebas sin red.</li>
+      </ul>
+    </section>
+
+    <!-- Columna derecha -->
+    <section>
+      <h2>4 · Cómo decide</h2>
+      <img src="flujo_decision.svg" alt="Diagrama de flujo de decisión">
+      <ul>
+        <li><span class="tag no">Rechaza</span> solo con evidencia firme de calidad: foto a pantalla, foto borrosa (Haiku lo marca y la
+        medición local lo confirma), foto lejana o sin etiqueta de precio legible.</li>
+        <li><span class="tag ok">Aprueba</span> si los 7 datos vienen completos, los 7 criterios están en ok y la nitidez medida es ≥ 180.
+        Solo en la API, la app y la ventana; el archivo oficial del set ciego no aprueba.</li>
+        <li><span class="tag man">Revisión manual</span> en todo lo demás: criterios dudosos, fallas de identidad del producto, precio sin
+        confirmar o errores. El rechazo por identidad está apagado porque en dev acertaba 1 de 5.</li>
+        <li><b>Por qué:</b> con costos 0 / 1 / 3 / 10, solo conviene aprobar con más de 90 % de certeza y rechazar con menos de 33 %.</li>
+      </ul>
+
+      <h2>5 · Resultados medidos (100 capturas de desarrollo)</h2>
+      <table>
+        <tr><th>Configuración</th><th>Aprobadas</th><th>Precisión aprob.</th><th>Costo</th></tr>
+        <tr><td>Archivo oficial (no aprueba)</td><td>0</td><td>—</td><td>92</td></tr>
+        <tr><td>Con aprobación por 7 criterios</td><td>27</td><td>78 %</td><td>125</td></tr>
+        <tr><td>Referencia: todo a manual</td><td>0</td><td>—</td><td>100</td></tr>
+      </table>
+      <ul>
+        <li>Rechazos por calidad: 16 de 20 correctos (80 %).</li>
+        <li>Relleno desde el catálogo: 150 de 150 por código o id; por nombre y contenido 142 de 150, con 0 errores.</li>
+        <li>Eficiencia: 1 llamada por captura, ~3.9k tokens de entrada y ~0.3k de salida.</li>
+      </ul>
+
+      <h2>6 · Límites y siguientes pasos</h2>
+      <ul>
+        <li>La aprobación (78 %) no llega al 97 % exigido: por eso el archivo oficial no aprueba.</li>
+        <li>Umbrales calibrados con solo 100 capturas; reglas y <code>reason_code</code> son provisionales hasta contar con el material oficial.</li>
+        <li>Haiku no responde siempre igual. El set ciego (50 capturas) no trae etiquetas, así que su precisión no está medida.</li>
+        <li><b>Siguiente:</b> segundo pase de verificación solo a las candidatas, OCR local y rechazo por identidad con la lista de contratipos.</li>
+      </ul>
+
+      <h2>7 · Valor para PriceCheck</h2>
+      <p>Salida estructurada con explicación por captura, API lista (<code>/validar</code>, <code>/analizar</code>), app que funciona sin
+      conexión, trazabilidad (JSON y fotos guardados) y relleno automático del catálogo.</p>
+    </section>
+  </div>
+
+  <footer>Costo por captura: acierto 0 · revisión manual 1 · rechazar una válida 3 · aprobar una inválida 10. Diagramas: <code>arquitectura.svg</code> y <code>flujo_decision.svg</code>.</footer>
+</div>
+</body>
+</html>
