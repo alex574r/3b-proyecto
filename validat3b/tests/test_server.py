@@ -133,7 +133,12 @@ def main():
     server.Handler.audit_token = "prueba-portal"
     audit = {"X-Audit-Token": "prueba-portal", "Origin": "http://127.0.0.1:8123"}
     ruta = "/auditoria/capturas"
+    assert b"Validat3B" in raw(port, "/portal/?modo=demo")[1]
+    assert raw(port, "/portal/assets/logo.png")[0] == 200
+    assert raw(port, "/portal/tests/portal_smoke.py")[0] == 404
+    assert raw(port, "/portal/imagenes/CAP-1_shelf.jpg")[0] == 404
     assert call(port, ruta)[0] == 401
+    assert call(port, ruta, headers={**audit, "Origin": "https://api.jamp.digital"})[0] == 200
     assert call(port, ruta, headers={**audit, "Origin": "https://otro.example"})[0] == 403
     code, bandeja = call(port, ruta, headers=audit)
     assert code == 200

@@ -190,6 +190,10 @@ Cliente Android de referencia: `3bApp/app/src/main/java/com/example/a3bapp/Valid
 
 ## Portal de auditoría
 
+Abre [el portal](https://api.jamp.digital/portal/) tras actualizar el proceso que ejecuta `server.py`. El mismo servicio publica la interfaz y recibe las capturas de Android. Introduce la credencial de auditoría para consultar la bandeja. La raíz del dominio redirige al portal.
+
+Para probar esta distribución en el equipo del servidor, abre `http://127.0.0.1:8000/portal/`. El servidor estático del puerto 8123 sigue disponible como opción de desarrollo.
+
 Las tres rutas usan `X-Audit-Token` según la [guía de integración](../INTEGRACION_IMAGENES.md).
 
 | Método y ruta | Resultado |

@@ -1,4 +1,4 @@
-"""Prueba opcional de navegador. Requiere Playwright y el portal en 127.0.0.1:8123."""
+"""Prueba del portal servido por la API. Requiere Playwright."""
 import os
 import sys
 import tempfile
@@ -43,7 +43,8 @@ def ejecutar(port, handler):
         page = browser.new_page()
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(f"http://127.0.0.1:8123/?api=http://127.0.0.1:{port}")
+        page.goto(f"http://127.0.0.1:{port}/")
+        assert page.url.startswith(f"http://127.0.0.1:{port}/portal/")
         def conectar():
             page.get_by_label("Credencial de auditoría").fill(handler.audit_token)
             page.get_by_role("button", name="Conectar", exact=True).click()

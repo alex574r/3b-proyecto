@@ -37,6 +37,16 @@ PHOTOS = ("facade", "product", "shelf")
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 IMG_RE = re.compile(r"^/imagenes/([A-Za-z0-9_-]{1,64}_(?:facade|product|shelf)\.jpg)$")
 SALIDA = Path(__file__).resolve().parent / "salida_api"  # dentro del proyecto, no depende de dónde se lance
+PORTAL = Path(__file__).resolve().parents[1] / "audit-demo"
+PORTAL_ARCHIVO = re.compile(
+    r"index\.html|app\.js|styles\.css|assets/(?:logo|personaje)\.png"
+    r"|assets/(?:alert|aro|chart|check|chevron|clock|halo|inbox|package|shield|store|tag|x)\.svg"
+    r"|assets/(?:dm-sans|ibm-plex-mono|manrope)\.ttf"
+    r"|demo-data/(?:cases\.json|(?:fachada|producto|etiqueta)\.png|licenses/OFL-(?:dmsans|ibmplexmono|manrope)\.txt)"
+)
+PORTAL_MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+               ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".ttf": "font/ttf",
+               ".png": "image/png", ".json": "application/json", ".txt": "text/plain; charset=utf-8"}
 HOST_RE = re.compile(r"^[A-Za-z0-9.:-]{1,255}$")
 CATALOGO = catalogo.ruta_catalogo()  # VALIDAT3B_CATALOGO, o el de evaluación / desarrollo que exista
 
@@ -120,16 +130,21 @@ class Handler(BaseHTTPRequestHandler):
     audit_origins = {x.strip() for x in os.environ.get("VALIDAT3B_AUDIT_ORIGINS",
                      "http://127.0.0.1:8123,http://localhost:8123").split(",") if x.strip()}
 
+    def _audit_origin_allowed(self, origin):
+        return origin in self.audit_origins or origin in (
+            "https://api.jamp.digital", f"http://127.0.0.1:{self.server.server_port}",
+            f"http://localhost:{self.server.server_port}")
+
     def end_headers(self):
         if self.path.startswith("/auditoria/"):
             self.send_header("Vary", "Origin")
-            if self.headers.get("Origin") in self.audit_origins:
+            if self._audit_origin_allowed(self.headers.get("Origin")):
                 self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def do_OPTIONS(self):
-        if not self.path.startswith("/auditoria/") or self.headers.get("Origin") not in self.audit_origins:
+        if not self.path.startswith("/auditoria/") or not self._audit_origin_allowed(self.headers.get("Origin")):
             return self._send(403, {"error": "Origen no permitido"})
         self.send_response(204)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -141,7 +156,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(503, {"error": "Auditoría pendiente de configuración"})
             return False
         origen = self.headers.get("Origin")
-        if origen and origen not in self.audit_origins:
+        if origen and not self._audit_origin_allowed(origen):
             self._send(403, {"error": "Origen no permitido"})
             return False
         if not hmac.compare_digest(self.headers.get("X-Audit-Token", "").encode(), self.audit_token.encode()):
@@ -190,7 +205,32 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("Host", "")
         return f"{proto}://{host if HOST_RE.match(host) else 'localhost'}"
 
+    def _portal(self, nombre):
+        if not PORTAL_ARCHIVO.fullmatch(nombre):
+            return self._send(404, {"error": "no encontrado"})
+        archivo = PORTAL / nombre
+        try:
+            datos = archivo.read_bytes()
+        except FileNotFoundError:
+            return self._send(404, {"error": "no encontrado"})
+        self.send_response(200)
+        self.send_header("Content-Type", PORTAL_MIME[archivo.suffix])
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(datos)
+
     def do_GET(self):
+        pagina, separador, consulta = self.path.partition("?")
+        if pagina in ("/", "/portal"):
+            self.send_response(302)
+            self.send_header("Location", "/portal/" + separador + consulta)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if pagina.startswith("/portal/"):
+            return self._portal(pagina.removeprefix("/portal/") or "index.html")
         if self.path == "/health":
             return self._send(200, {"status": "ok", "llm": self.client is not None})
         ruta = self.path

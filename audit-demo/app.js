@@ -4,9 +4,10 @@ const dialog = document.querySelector('#dialogo');
 
 const opcionesUrl = new URLSearchParams(location.search);
 const demo = opcionesUrl.get('modo') === 'demo';
-const api = new URL('https://api.jamp.digital');
+const integrado = location.pathname.startsWith('/portal/');
+const api = new URL(integrado ? location.origin : 'https://api.jamp.digital');
 const prueba = opcionesUrl.get('api');
-if (prueba) {
+if (prueba && !integrado) {
   const local = new URL(prueba);
   if (['localhost', '127.0.0.1'].includes(local.hostname) && local.protocol === 'http:') api.href = local.origin;
 }
