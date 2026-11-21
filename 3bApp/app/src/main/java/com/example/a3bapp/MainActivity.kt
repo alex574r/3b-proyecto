@@ -43,13 +43,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -269,11 +269,24 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    // Limpia el formulario para empezar otra captura. Las ya analizadas siguen en el historial.
+    fun nuevoRegistro() {
+        fachada = null; foto = null; etiqueta = null; actualId = null; error = null
+        tienda = ""; barcode = ""; precio = ""; marca = ""; producto = ""; contenido = ""; unidad = ""
+    }
+
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Validar captura", style = MaterialTheme.typography.headlineSmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Validar captura", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            OutlinedButton(enabled = !enviando, onClick = { nuevoRegistro() }) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Nuevo registro")
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FotoSlot("Fachada", fachada, Modifier.weight(1f)) { fachada = it }
             FotoSlot("Producto", foto, Modifier.weight(1f)) { foto = it }
@@ -330,12 +343,6 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
                         Button(onClick = { CapturaRepo.enviarYa(ctx, c.id, manual = true) }) { Text("Reintentar") }
                     }
                 }
-            }
-            if (!enviando) {
-                TextButton(onClick = {
-                    fachada = null; foto = null; etiqueta = null; actualId = null
-                    tienda = ""; barcode = ""; precio = ""; marca = ""; producto = ""; contenido = ""; unidad = ""
-                }) { Text("Nueva captura") }
             }
         }
 

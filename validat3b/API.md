@@ -80,7 +80,8 @@ Las 24 primeras llaves (hasta `motivo_rechazo`) son las de `capturas.json`:
 - `capture_barcode` y `product_barcode` van como **número**, igual que en `capturas.json` (se pierden ceros a la izquierda).
 - `*_file` / `*_url`: el servidor **guarda las 3 fotos** en `validat3b/salida_api/imagenes/<capture_id>_<facade|product|shelf>.jpg`
   y las sirve en `GET /imagenes/...` con la misma autenticación (un navegador sin el header recibe 401). La URL usa el dominio con
-  el que llegó la petición. Si las fotos no se pudieron guardar, van en `null`.
+  el que llegó la petición. Si las fotos no se pudieron guardar, van en `null`. Cada registro devuelto también se guarda en
+  `validat3b/salida_api/json/<capture_id>.json`.
 - `decision_esperada`: la decisión del motor, `aprobada` | `rechazada` | `revision_manual` (el nombre de la llave es el de
   `capturas.json`). **Hoy el motor no aprueba** (`ALLOW_APPROVE = False`): las capturas que se verían bien salen
   `revision_manual` con `CANDIDATA_APROBACION`.

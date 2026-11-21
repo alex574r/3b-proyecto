@@ -8,7 +8,8 @@ POST /validar   JSON: campos de capturas.json (capture_store_name, capture_barco
 POST /analizar  Solo las 3 fotos son obligatorias; todos los demás campos son opcionales y, si vienen, mandan.
 Ambos POST -> un registro con la forma de capturas.json (capture_id ... decision_esperada, motivo_rechazo) y después el
 detalle del motor (precio_descuento, confidence_score, reason_code, validaciones, explicacion...). Siempre 200 con
-registro válido; ante error interno, revision_manual / ERROR_PROCESAMIENTO. Las fotos quedan en salida_api/imagenes/.
+registro válido; ante error interno, revision_manual / ERROR_PROCESAMIENTO. Dentro del proyecto quedan las fotos en
+salida_api/imagenes/ y cada registro en salida_api/json/<capture_id>.json.
 Auth (si hay VALIDAT3B_TOKEN o VALIDAT3B_JWT_SECRET definidos; si no, abierto): header X-Api-Key con el token fijo,
 o Authorization: Bearer <JWT HS256 firmado con VALIDAT3B_JWT_SECRET, con exp a lo sumo 15 min adelante>.
 La llave de Foundry vive solo aquí (FOUNDRY_API_KEY); la app nunca la ve.
@@ -34,6 +35,7 @@ MAX_BODY = 40 * 1024 * 1024
 PHOTOS = ("facade", "product", "shelf")
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 IMG_RE = re.compile(r"^/imagenes/([A-Za-z0-9_-]{1,64}_(?:facade|product|shelf)\.jpg)$")
+SALIDA = Path(__file__).resolve().parent / "salida_api"  # dentro del proyecto, no depende de dónde se lance
 HOST_RE = re.compile(r"^[A-Za-z0-9.:-]{1,255}$")
 CATALOGO = Path(os.environ.get("VALIDAT3B_CATALOGO") or
                 Path(__file__).resolve().parent.parent / "Validat3B_desarrollo_metadatos" / "catalogo_productos.csv")
@@ -110,8 +112,9 @@ class Handler(BaseHTTPRequestHandler):
     token = os.environ.get("VALIDAT3B_TOKEN")
     jwt_secret = os.environ.get("VALIDAT3B_JWT_SECRET")
     catalog = {}
-    usage_log = Path("salida_api") / "usage.jsonl"
-    img_dir = Path("salida_api") / "imagenes"
+    usage_log = SALIDA / "usage.jsonl"
+    img_dir = SALIDA / "imagenes"
+    json_dir = SALIDA / "json"
 
     def _send(self, code, obj):
         data = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
@@ -186,7 +189,13 @@ class Handler(BaseHTTPRequestHandler):
             res = output.fallback(cid, f"{type(e).__name__}: {e}")
             datos = auto.detectar(cap, [], None, self.catalog)
             fotos = fotos if guardadas else {}
-        self._send(200, auto.registro(datos, res, fotos))
+        registro = auto.registro(datos, res, fotos)
+        try:  # el registro queda en disco; si falla, la respuesta al cliente no debe fallar
+            self.json_dir.mkdir(parents=True, exist_ok=True)
+            (self.json_dir / f"{cid}.json").write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as e:
+            print(f"No se pudo guardar el JSON de {cid}: {e}", file=sys.stderr)
+        self._send(200, registro)
 
 
 def main():
@@ -199,7 +208,7 @@ def main():
         if "FOUNDRY_API_KEY" not in os.environ:
             sys.exit("Define FOUNDRY_API_KEY (o usa --no-llm).")
         Handler.client = vision.make_client()
-    Handler.usage_log.parent.mkdir(exist_ok=True)
+    Handler.usage_log.parent.mkdir(parents=True, exist_ok=True)
     Handler.catalog = auto.load_catalog(CATALOGO)
     print(f"API en http://{args.host}:{args.port}  llm={'no' if args.no_llm else 'sí'}  "
           f"token={'sí' if Handler.token else 'no'}  jwt={'sí' if Handler.jwt_secret else 'no'}  "

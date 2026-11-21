@@ -50,7 +50,8 @@ def main():
     server.Handler.token = None
     server.Handler.jwt_secret = None
     server.Handler.catalog = {}
-    server.Handler.img_dir = Path(tempfile.mkdtemp()) / "imagenes"  # no ensuciar salida_api con fotos de prueba
+    tmp = Path(tempfile.mkdtemp())  # no ensuciar salida_api con fotos y JSON de prueba
+    server.Handler.img_dir, server.Handler.json_dir = tmp / "imagenes", tmp / "json"
     srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -71,6 +72,8 @@ def main():
 
     code, res = call(port, "/validar", dict(ok, capture_id="CAP-1"))
     assert res["capture_id"] == "CAP-1"
+    # el registro queda guardado en disco tal como se devolvió
+    assert json.loads((server.Handler.json_dir / "CAP-1.json").read_text(encoding="utf-8")) == res
     # las fotos quedan guardadas y se sirven en la URL del registro
     assert res["facade_file"] == "imagenes/CAP-1_facade.jpg"
     assert res["shelf_url"] == f"http://127.0.0.1:{port}/imagenes/CAP-1_shelf.jpg", res["shelf_url"]

@@ -48,6 +48,21 @@ La app Android está en `../3bApp` (pantalla `ValidarScreen`, cliente `ValidatAp
 - En dev la etiqueta está casi totalmente correlacionada con hora y tienda de captura (lotes). No se usa como
   señal: no es criterio de analista y probablemente no se repite en el set ciego.
 
+## Analizar una carpeta (ventana)
+```powershell
+$env:FOUNDRY_API_KEY = "<api-key>"      # opcional: sin ella solo corren los chequeos locales
+python gui.py
+```
+Elige una carpeta con fotos `<ID>_facade.jpg`, `<ID>_product.jpg` y `<ID>_shelf.jpg` (como `Validat3B_desarrollo_imagenes`; busca
+también en subcarpetas) y pulsa **Analizar carpeta**. Con Haiku activo pide confirmación y avisa el costo estimado (~3.9k tokens por
+captura). La tabla muestra decisión, motivo, tienda, producto, precio y oferta; doble clic (o **Ver JSON**) abre el registro completo.
+Guarda un JSON por captura (el mismo registro que devuelve la API) y `resultados.json` en `salida_carpetas/<nombre de la carpeta>/`
+dentro del proyecto. Por defecto reutiliza los JSON ya guardados para no gastar tokens dos veces. Lógica en `engine/carpeta.py`;
+prueba sin red: `python tests/test_carpeta.py`.
+
+La API también guarda cada registro que devuelve en `salida_api/json/<capture_id>.json` (y las fotos en `salida_api/imagenes/`).
+Las carpetas `salida*/` las ignora git porque contienen datos de 3B.
+
 ## API pública (https://api.jamp.digital) — contrato completo en [API.md](API.md)
 Túnel de Cloudflare `validat3b` → `http://127.0.0.1:8000` (config en `%USERPROFILE%\.cloudflared\config.yml`).
 ```powershell
