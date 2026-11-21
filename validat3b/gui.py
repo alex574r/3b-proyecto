@@ -72,6 +72,8 @@ class App(tk.Tk):
         self.btn_detener = ttk.Button(acc, text="Detener", command=self.stop.set, state="disabled")
         self.btn_detener.pack(side="left", padx=6)
         ttk.Button(acc, text="Ver JSON", command=self.ver_json).pack(side="left")
+        self.btn_exportar = ttk.Button(acc, text="Exportar JSON…", command=self.exportar, state="disabled")
+        self.btn_exportar.pack(side="left", padx=6)
         ttk.Button(acc, text="Abrir carpeta de resultados", command=self.abrir_salida).pack(side="left", padx=6)
 
         self.barra = ttk.Progressbar(self, mode="determinate")
@@ -122,7 +124,8 @@ class App(tk.Tk):
         self.btn_detener.state(["!disabled"])
         extra = f" · {len(avisos)} omitidas" if avisos else ""
         self.estado.set(f"Analizando {len(capturas)} capturas{extra}…")
-        self.salida = salida
+        self.salida, self.analizada, self.con_llm = salida, ruta, bool(usar_llm)
+        self.btn_exportar.state(["disabled"])
         try:
             client = vision.make_client() if usar_llm else None
         except Exception as e:  # noqa: BLE001
@@ -167,6 +170,21 @@ class App(tk.Tk):
                         f" · JSON en {getattr(self, 'salida', SALIDA)}")
         self.btn_analizar.state(["!disabled"])
         self.btn_detener.state(["disabled"])
+        if self.registros:
+            self.btn_exportar.state(["!disabled"])
+
+    def exportar(self, destino=None):
+        """Escribe un solo JSON con el resumen y todas las capturas analizadas. destino=None abre el diálogo de guardar."""
+        if not self.registros:
+            return messagebox.showinfo("Exportar", "Todavía no hay capturas analizadas.")
+        destino = destino or filedialog.asksaveasfilename(
+            title="Exportar JSON", defaultextension=".json", filetypes=[("JSON", "*.json")],
+            initialdir=str(self.salida), initialfile=f"exportacion_{Path(self.analizada).name}.json")
+        if not destino:
+            return None
+        carpeta.exportar(self.registros.values(), destino, self.analizada, self.con_llm)
+        self.estado.set(f"Exportado: {destino}")
+        return destino
 
     def ver_json(self):
         sel = self.tabla.selection()

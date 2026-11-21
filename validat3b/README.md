@@ -57,7 +57,9 @@ Elige una carpeta con fotos `<ID>_facade.jpg`, `<ID>_product.jpg` y `<ID>_shelf.
 también en subcarpetas) y pulsa **Analizar carpeta**. Con Haiku activo pide confirmación y avisa el costo estimado (~3.9k tokens por
 captura). La tabla muestra decisión, motivo, tienda, producto, precio y oferta; doble clic (o **Ver JSON**) abre el registro completo.
 Guarda un JSON por captura (el mismo registro que devuelve la API) y `resultados.json` en `salida_carpetas/<nombre de la carpeta>/`
-dentro del proyecto. Por defecto reutiliza los JSON ya guardados para no gastar tokens dos veces. Lógica en `engine/carpeta.py`;
+dentro del proyecto. Al terminar, **Exportar JSON…** escribe un solo archivo con los datos de la corrida (carpeta, fecha, si usó Haiku),
+un resumen (por decisión, por motivo y por tienda) y el registro completo de todas las capturas. Por defecto reutiliza los JSON ya
+guardados para no gastar tokens dos veces. Lógica en `engine/carpeta.py`;
 prueba sin red: `python tests/test_carpeta.py`.
 
 La API también guarda cada registro que devuelve en `salida_api/json/<capture_id>.json` (y las fotos en `salida_api/imagenes/`).

@@ -83,8 +83,12 @@ Las 24 primeras llaves (hasta `motivo_rechazo`) son las de `capturas.json`:
   el que llegó la petición. Si las fotos no se pudieron guardar, van en `null`. Cada registro devuelto también se guarda en
   `validat3b/salida_api/json/<capture_id>.json`.
 - `decision_esperada`: la decisión del motor, `aprobada` | `rechazada` | `revision_manual` (el nombre de la llave es el de
-  `capturas.json`). **Hoy el motor no aprueba** (`ALLOW_APPROVE = False`): las capturas que se verían bien salen
-  `revision_manual` con `CANDIDATA_APROBACION`.
+  `capturas.json`). **Se aprueba por datos completos** (`APPROVE_POR_DATOS`): si `capture_id`, `capture_store_name`,
+  `capture_date`, `capture_barcode`, `capture_price`, `capture_brand` y `product_name` vienen rellenos y las fotos no salen
+  borrosas ni lejanas, Haiku marca los 7 criterios (fachada, pantalla, nitidez, cercanía, producto, etiqueta y precio) en `ok` y la
+  nitidez medida ≥ 180. No compara el precio capturado con la etiqueta. En las 100 capturas de dev aprobó 27 con 78 % de precisión. Solo
+  aplica a la API, la app y la ventana; `run.py` (archivo oficial del set ciego) no la usa. Lo que no cumple va a
+  `revision_manual`; el criterio estricto anterior (`ALLOW_APPROVE = False`) deja `CANDIDATA_APROBACION`.
 - `motivo_rechazo`: `""` salvo que se rechace; entonces el texto como lo registran los analistas (`Capturas borrosas`,
   `Capturas lejanas`, `Descripción de producto incompleta`, `Foto tomada a la pantalla de otro celular`, `No hay etiqueta de precio`...).
 

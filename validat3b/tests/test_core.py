@@ -25,6 +25,23 @@ def run(local=LOCAL_OK, v="default"):
 
 
 def main():
+    # aprobación por datos completos: solo si quien llama pasa `datos`; run.py no lo pasa
+    full = {k: "x" for k in decide.CAMPOS_COMPLETOS}
+    r = decide.decide(CAP, LOCAL_OK, vis(), full)
+    assert r["decision"] == "aprobada" and r["reason_code"] == "APROBADA" and output.validate(r) == []
+    assert run()["decision"] == "revision_manual"                                    # sin datos: regla inactiva
+    for k in decide.CAMPOS_COMPLETOS:                                                # un campo vacío o null -> no
+        for vacio in (None, ""):
+            assert decide.decide(CAP, LOCAL_OK, vis(), dict(full, **{k: vacio}))["decision"] == "revision_manual", k
+    for k in decide.CRITERIOS:                                                       # los 7 criterios deben estar en ok
+        assert decide.decide(CAP, LOCAL_OK, vis(**{k: "dudoso"}), full)["decision"] == "revision_manual", k
+    assert decide.decide(CAP, dict(LOCAL_OK, blur={"product": 100.0, "shelf": 500.0}), vis(), full)["decision"] == "revision_manual"
+    assert decide.decide(CAP, LOCAL_OK, vis(cercania="falla"), full)["reason_code"] == "CAPTURA_LEJANA"   # rechazo firme manda
+    assert decide.decide(CAP, LOCAL_OK, None, full)["reason_code"] == "SIN_ANALISIS_VISUAL"
+    decide.APPROVE_POR_DATOS = False                                                 # apagada: vuelve al criterio estricto
+    assert decide.decide(CAP, LOCAL_OK, vis(), full)["reason_code"] == "CANDIDATA_APROBACION"
+    decide.APPROVE_POR_DATOS = True
+
     # con aprobación desactivada (default), la candidata sale a manual con su propio código
     assert decide.ALLOW_APPROVE is False
     r = run()

@@ -83,7 +83,7 @@ def completar(cap, local, vis, catalog):
     # y uno escrito por el usuario que no se pudo decodificar queda "no_evaluable".
     if code and code.lstrip("0") not in {_digits(c).lstrip("0") for c in local["barcodes"]}:
         local = dict(local, barcodes=[] if cap.get("capture_barcode") else [code])
-    res = decide.decide(full, local, vis or None)
+    res = decide.decide(full, local, vis or None, datos)
     datos["precio_descuento"] = res["precio_descuento"]
     return res, datos
 

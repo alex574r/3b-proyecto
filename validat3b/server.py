@@ -96,7 +96,7 @@ def run_capture(cap, paths, client, usage_log, catalog):
     datos = auto.detectar(cap, local["barcodes"], vis, catalog)
     # el rango del catálogo valida el precio de descuento, salvo que el cliente mande el suyo
     rango = {"min_product_price": datos["min_product_price"], "max_product_price": datos["max_product_price"]}
-    res = decide.decide({**rango, **cap}, local, vis)
+    res = decide.decide({**rango, **cap}, local, vis, datos)
     datos["precio_descuento"] = res["precio_descuento"]
     return res, datos
 

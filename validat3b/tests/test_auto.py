@@ -44,7 +44,8 @@ def main():
     assert d["capture_store_name"] == "Neto" and d["capture_price"] == 14.0 and d["capture_brand"] == "Cat-tit"
     assert d["capture_barcode"] == "763331024755" and d["product_name"] == "Arena para gato"
     assert d["fuente_producto"] == "catalogo" and d["unit_quantity_product"] == 2000.0 and d["unit_product"] == "gramo"
-    assert res["decision"] == "revision_manual" and res["reason_code"] == "CANDIDATA_APROBACION"
+    # todos los datos quedan rellenos (fotos + catálogo) y las fotos son nítidas y cercanas: se aprueba por datos completos
+    assert res["decision"] == "aprobada" and res["reason_code"] == "APROBADA"
     # misma estructura que un registro de capturas.json, con el SKU completado desde el catálogo
     assert list(d) == ["capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price",
                        "capture_brand", "id_product", "product_name", "product_barcode", "product_price",
@@ -59,7 +60,8 @@ def main():
     res, d = auto.completar(cap, LOCAL, dict(VIS, precio_descuento=12.0), catalog)
     assert res["precio_descuento"] == d["precio_descuento"] == 12.0
     res, d = auto.completar(dict(cap, capture_price=30.0), LOCAL, dict(VIS, precio_etiqueta=40.0, precio_descuento=30.0), catalog)
-    assert res["precio_descuento"] is None and d["precio_descuento"] is None and res["reason_code"] == "EVIDENCIA_AMBIGUA"
+    # un descuento inválido se descarta (null); con datos completos la captura igual se aprueba
+    assert res["precio_descuento"] is None and d["precio_descuento"] is None and res["decision"] == "aprobada"
     # registro de respuesta: llaves y orden de capturas.json, códigos como número, detalle del motor al final
     res, d = auto.completar(cap, LOCAL, VIS, catalog)
     fotos = {k: (f"imagenes/APP-1_{k}.jpg", f"https://x/imagenes/APP-1_{k}.jpg") for k in ("facade", "product", "shelf")}
@@ -99,7 +101,8 @@ def main():
     # lo que escribió el usuario manda; un precio distinto al de la etiqueta impide el candidato
     res, d = auto.completar(dict(cap, capture_price=20.0, product_name="Otro", capture_store_name="Soriana"), LOCAL, VIS, catalog)
     assert d["capture_price"] == 20.0 and d["product_name"] == "Otro" and d["fuente_producto"] == "usuario"
-    assert res["reason_code"] == "EVIDENCIA_AMBIGUA" and res["validaciones"]["evidencia_precio"] == "falla"
+    # el precio escrito difiere del de la etiqueta: se reporta como falla, pero con datos completos no bloquea la aprobación
+    assert res["decision"] == "aprobada" and res["validaciones"]["evidencia_precio"] == "falla"
 
     # una falla de calidad firme se rechaza igual que en /validar
     bad = dict(VIS, criterios=dict(CRIT, pantalla="falla"))
