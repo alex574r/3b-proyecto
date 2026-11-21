@@ -86,7 +86,7 @@ object CapturaRepo {
                 File(dir, "${ahora}_$n.jpg").also { it.writeBytes(ValidatApi.jpeg(ctx.contentResolver, fotos[i])) }.path
             }
             fun campo(k: String) = campos[k].orEmpty().trim()
-            dao(ctx).insertar(
+            val id = dao(ctx).insertar(
                 Captura(
                     creadaEn = ahora, estado = Estado.PENDIENTE, fachada = rutas[0], producto = rutas[1], etiqueta = rutas[2],
                     tienda = campo("capture_store_name"), barcode = campo("capture_barcode"), precio = campo("capture_price"),
@@ -94,6 +94,8 @@ object CapturaRepo {
                     contenido = campo("unit_quantity_product"), unidad = campo("unit_product"),
                 ),
             )
+            programarSync(ctx, nueva = true)
+            id
         }
 
     /**
@@ -174,13 +176,14 @@ object CapturaRepo {
     }
 
     /** Un solo trabajo en cola: espera red y reintenta con espera creciente (30 s, 60 s, 2 min...). */
-    fun programarSync(ctx: Context) {
+    fun programarSync(ctx: Context, nueva: Boolean = false) {
         val req = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setInitialDelay(30, TimeUnit.SECONDS)
+            .setInitialDelay(if (nueva) 0L else 30L, TimeUnit.SECONDS)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
-        WorkManager.getInstance(ctx.applicationContext).enqueueUniqueWork("sync-capturas", ExistingWorkPolicy.KEEP, req)
+        val politica = if (nueva) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP
+        WorkManager.getInstance(ctx.applicationContext).enqueueUniqueWork("sync-capturas", politica, req)
     }
 
     /** Al abrir la app: si quedaron pendientes de una sesión anterior, vuelve a programar su envío. */

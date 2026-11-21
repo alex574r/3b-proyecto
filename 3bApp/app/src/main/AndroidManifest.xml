@@ -5,7 +5,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- shortcut: http en claro para el servidor local de desarrollo; en producción usar HTTPS y quitar esto -->
+    <!-- shortcut: http en claro para el servidor local de desarrollo; en producciÃ³n usar HTTPS y quitar esto -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
@@ -16,6 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme._3bApp">
+        <activity android:name=".CamaraGuiada" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,7 +33,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Para que la cámara del teléfono guarde la foto en la caché de la app -->
+        <!-- Para que la cÃ¡mara del telÃ©fono guarde la foto en la cachÃ© de la app -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

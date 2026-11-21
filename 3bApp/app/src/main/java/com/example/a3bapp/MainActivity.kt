@@ -1,5 +1,8 @@
 package com.example.a3bapp
 
+import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,7 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -32,14 +34,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -49,11 +49,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -61,7 +58,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,10 +68,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.example.a3bapp.ui.theme._3bAppTheme
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -145,9 +139,10 @@ fun rememberThumb(uri: Uri): ImageBitmap? {
 fun FotoSlot(label: String, uri: Uri?, modifier: Modifier = Modifier, onPick: (Uri) -> Unit) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    var pending by remember { mutableStateOf<Uri?>(null) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let(onPick) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) pending?.let(onPick) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) result.data?.data?.let(onPick)
+    }
     val thumb = uri?.let { rememberThumb(it) }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
@@ -163,10 +158,7 @@ fun FotoSlot(label: String, uri: Uri?, modifier: Modifier = Modifier, onPick: (U
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Tomar foto") }, onClick = {
                     menu = false
-                    val dir = File(ctx.cacheDir, "photos").apply { mkdirs() }
-                    val file = File(dir, "${label}_${System.currentTimeMillis()}.jpg")
-                    pending = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-                    camera.launch(pending!!)
+                    camera.launch(Intent(ctx, CamaraGuiada::class.java).putExtra("tipo", label))
                 })
                 DropdownMenuItem(text = { Text("Elegir de galería") }, onClick = {
                     menu = false
@@ -255,20 +247,9 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
     var fachada by rememberSaveable { mutableStateOf<Uri?>(null) }
     var foto by rememberSaveable { mutableStateOf<Uri?>(null) }
     var etiqueta by rememberSaveable { mutableStateOf<Uri?>(null) }
-    var actualId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var guardando by remember { mutableStateOf(false) }
+    var aviso by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    // La captura actual vive en Room: la pantalla se actualiza sola cuando el envío termina, aunque sea más tarde
-    val actual by remember(actualId) { actualId?.let { CapturaRepo.observar(ctx, it) } ?: flowOf<Captura?>(null) }.collectAsState(null)
-    val enProceso by CapturaRepo.enProceso.collectAsState()
-    val enviando = actualId?.let { it in enProceso } == true
-
-    LaunchedEffect(actual?.id, actual?.estado) {
-        actual?.takeIf { it.estado == Estado.ENVIADA }?.let { c ->
-            tienda = c.tienda; barcode = c.barcode; precio = c.precio; marca = c.marca
-            producto = c.nombre; contenido = c.contenido; unidad = c.unidad
-        }
-    }
-
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -280,9 +261,12 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
             FotoSlot("Etiqueta", etiqueta, Modifier.weight(1f)) { etiqueta = it }
         }
         Button(
-            enabled = !enviando && fachada != null && foto != null && etiqueta != null,
+            enabled = !guardando && fachada != null && foto != null && etiqueta != null,
             onClick = {
+                if (guardando) return@Button
+                guardando = true
                 error = null
+                aviso = null
                 scope.launch {
                     try {
                         // lo que ya hay en los campos (autollenado o corregido) viaja como dato del usuario
@@ -292,56 +276,24 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
                             "unit_quantity_product" to contenido, "unit_product" to unidad,
                         )
                         // primero se guarda en Room (con las fotos); después se intenta enviar
-                        val id = CapturaRepo.nueva(ctx, campos, listOf(fachada!!, foto!!, etiqueta!!))
-                        actualId = id
-                        CapturaRepo.enviarYa(ctx, id, manual = true)
+                        CapturaRepo.nueva(ctx, campos, listOf(fachada!!, foto!!, etiqueta!!))
+                        fachada = null; foto = null; etiqueta = null
+                        tienda = ""; barcode = ""; precio = ""; marca = ""; producto = ""; contenido = ""; unidad = ""
+                        aviso = "Captura guardada. Puedes tomar la siguiente."
                     } catch (e: Exception) {
                         error = "No se pudieron guardar las fotos: ${e.message ?: e}"
+                    } finally {
+                        guardando = false
                     }
                 }
             },
-        ) { Text("Analizar fotos") }
-
-        if (enviando) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircularProgressIndicator(Modifier.size(24.dp))
-                Text("Analizando…")
-            }
-        }
-        error?.let { Text("Error: $it", color = MaterialTheme.colorScheme.error) }
-        actual?.let { c ->
-            when {
-                c.estado == Estado.ENVIADA && c.resultadoJson != null -> ResultadoCard(JSONObject(c.resultadoJson))
-                c.estado == Estado.PENDIENTE && !enviando -> Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                            Text("Guardada sin enviar", style = MaterialTheme.typography.titleMedium)
-                        }
-                        Text("No hay conexión o es deficiente. Quedó en el historial y se enviará sola cuando haya red.")
-                        c.error?.let { Text("Motivo: $it", style = MaterialTheme.typography.bodySmall) }
-                        Button(onClick = { CapturaRepo.enviarYa(ctx, c.id, manual = true) }) { Text("Reintentar ahora") }
-                    }
-                }
-                c.estado == Estado.ERROR && !enviando -> Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("No se pudo analizar", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
-                        Text(c.error.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { CapturaRepo.enviarYa(ctx, c.id, manual = true) }) { Text("Reintentar") }
-                    }
-                }
-            }
-            if (!enviando) {
-                TextButton(onClick = {
-                    fachada = null; foto = null; etiqueta = null; actualId = null
-                    tienda = ""; barcode = ""; precio = ""; marca = ""; producto = ""; contenido = ""; unidad = ""
-                }) { Text("Nueva captura") }
-            }
-        }
+        ) { Text(if (guardando) "Guardando…" else "Guardar captura") }
+        aviso?.let { Text(it) }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         Text("Datos de la captura", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Se llenan solos al analizar las fotos. Puedes corregirlos y volver a analizar.",
+            "Campos opcionales. Consulta los datos detectados en el historial.",
             style = MaterialTheme.typography.bodySmall,
         )
         Campo("Tienda / cadena", tienda, { tienda = it })
@@ -354,13 +306,5 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
             Campo("Unidad", unidad, { unidad = it }, Modifier.weight(1f))
         }
 
-        actual?.resultadoJson?.let { json ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("JSON de respuesta", style = MaterialTheme.typography.titleSmall)
-                    SelectionContainer { Text(json, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
-                }
-            }
-        }
     }
 }
