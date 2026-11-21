@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -37,7 +36,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,9 +45,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -60,6 +58,7 @@ import java.util.Locale
 @Composable
 fun rememberThumbFile(path: String): ImageBitmap? =
     produceState<ImageBitmap?>(null, path) {
+        value = null
         value = withContext(Dispatchers.IO) { runCatching { ValidatApi.thumbFile(path).asImageBitmap() }.getOrNull() }
     }.value
 
@@ -76,8 +75,8 @@ fun MiniFoto(path: String, label: String, modifier: Modifier = Modifier) {
 @Composable
 fun HistorialScreen(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    val items by CapturaRepo.observarTodas(ctx).collectAsState(emptyList())
-    val enProceso by CapturaRepo.enProceso.collectAsState()
+    val items by CapturaRepo.observarTodas(ctx).collectAsStateWithLifecycle(emptyList())
+    val enProceso by CapturaRepo.enProceso.collectAsStateWithLifecycle()
     val pendientes = items.count { it.estado == Estado.PENDIENTE }
     var abierta by rememberSaveable { mutableStateOf<Long?>(null) }
 
@@ -116,7 +115,7 @@ fun CapturaItem(c: Captura, expandida: Boolean, enviando: Boolean, onToggle: () 
     val (icono, color, estado) = when {
         c.estado == Estado.PENDIENTE -> Triple(Icons.Default.Refresh, colores.tertiary, if (enviando) "Enviando…" else "Pendiente de enviar")
         c.estado == Estado.ERROR -> Triple(Icons.Default.Info, colores.error, "Error")
-        c.decision == "aprobada" -> Triple(Icons.Default.CheckCircle, colores.primary, "Aprobada")
+        c.decision == "aprobada" -> Triple(Icons.Default.CheckCircle, colores.secondary, "Aprobada")
         c.decision == "rechazada" -> Triple(Icons.Default.Close, colores.error, "Rechazada")
         else -> Triple(Icons.Default.Warning, colores.tertiary, "Revisión manual")
     }
@@ -157,10 +156,7 @@ fun CapturaItem(c: Captura, expandida: Boolean, enviando: Boolean, onToggle: () 
                     c.error?.let { Text("Último error: $it", color = colores.error, style = MaterialTheme.typography.bodySmall) }
                 }
                 respuesta?.let { ResultadoCard(it) }
-                c.resultadoJson?.let {
-                    Text("JSON de respuesta", style = MaterialTheme.typography.titleSmall)
-                    SelectionContainer { Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
-                }
+                c.resultadoJson?.let { RespuestaJson(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (c.estado != Estado.ENVIADA) {
                         Button(enabled = !enviando, onClick = { CapturaRepo.enviarYa(ctx, c.id, manual = true) }) {
