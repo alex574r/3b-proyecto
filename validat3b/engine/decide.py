@@ -14,6 +14,14 @@ from . import output
 APPROVE_BLUR_MIN = 180.0
 APPROVE_MOIRE_MAX = 65.0
 REJECT_BLUR_MAX = 180.0   # nitidez "falla" de Haiku solo se acepta como rechazo si la medición local también es baja
+# Aprobación automática apagada: en dev, 6 de 22 aprobaciones fueron malas (5 eran revision_manual que Haiku ve
+# perfectas). Las candidatas salen como revision_manual con CANDIDATA_APROBACION. Reactivar cuando se sepa cómo
+# puntúa el script oficial una captura con etiqueta revision_manual.
+ALLOW_APPROVE = False
+# Rechazo por identidad apagado: en dev, 1 de 5 rechazos por producto/etiqueta fue correcto (Haiku marca "falla"
+# por gramaje o variante que 3B acepta, y el catálogo no trae contratipos permitidos). Van a revisión manual.
+# Reactivar con las reglas oficiales y la lista de contratipos.
+REJECT_IDENTITY = False
 APPROVE_CONF = 0.97
 FIRM_CONF = 0.90
 MANUAL_CONF = 0.50
@@ -78,8 +86,9 @@ def decide(cap, local, vision):
         (blurry, "IMAGEN_BORROSA", "Las fotos del producto o la etiqueta están borrosas."),
         (f["cercania"], "CAPTURA_LEJANA", "La foto del producto es demasiado lejana."),
         # en dev, producto y etiqueta de otra variante ("estrella" vs "moñito") se registró como descripción incompleta
-        (f["producto"] and f["etiqueta"], "DESCRIPCION_INCOMPLETA", "La etiqueta y el producto no corresponden a la descripción esperada."),
-        (f["producto"], "PRODUCTO_NO_COINCIDE", "El producto de la foto no coincide con el esperado."),
+        (REJECT_IDENTITY and f["producto"] and f["etiqueta"], "DESCRIPCION_INCOMPLETA",
+         "La etiqueta y el producto no corresponden a la descripción esperada."),
+        (REJECT_IDENTITY and f["producto"], "PRODUCTO_NO_COINCIDE", "El producto de la foto no coincide con el esperado."),
         (f["precio"], "SIN_ETIQUETA_PRECIO", "No hay etiqueta de precio legible."),
     )
     for hit, code, why in firm:
@@ -90,8 +99,11 @@ def decide(cap, local, vision):
     all_ok = all(crit[k] == "ok" for k in CRITERIOS)
     local_ok = min_blur >= APPROVE_BLUR_MIN and max_moire <= APPROVE_MOIRE_MAX
     if all_ok and local_ok and price_ok:
-        return output.make(cid, "aprobada", APPROVE_CONF, "APROBADA", val, precio, bc_found,
-                           "Fachada, producto y etiqueta coinciden con lo esperado; precio confirmado en etiqueta.")
+        if ALLOW_APPROVE:
+            return output.make(cid, "aprobada", APPROVE_CONF, "APROBADA", val, precio, bc_found,
+                               "Fachada, producto y etiqueta coinciden con lo esperado; precio confirmado en etiqueta.")
+        return output.make(cid, "revision_manual", MANUAL_CONF, "CANDIDATA_APROBACION", val, precio, bc_found,
+                           "Toda la evidencia coincide; la aprobación automática está desactivada, revisión rápida.")
 
     dudas = [k for k in CRITERIOS if crit[k] != "ok"]
     if not local_ok:

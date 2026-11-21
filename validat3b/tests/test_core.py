@@ -25,6 +25,17 @@ def run(local=LOCAL_OK, v="default"):
 
 
 def main():
+    # con aprobación desactivada (default), la candidata sale a manual con su propio código
+    assert decide.ALLOW_APPROVE is False
+    r = run()
+    assert r["decision"] == "revision_manual" and r["reason_code"] == "CANDIDATA_APROBACION"
+    # con rechazo por identidad desactivado (default), producto/etiqueta en falla van a manual
+    assert decide.REJECT_IDENTITY is False
+    assert run(v=vis(producto="falla"))["decision"] == "revision_manual"
+    assert run(v=vis(producto="falla", etiqueta="falla"))["decision"] == "revision_manual"
+    # el resto prueba la lógica completa con aprobación y rechazo por identidad activos
+    decide.ALLOW_APPROVE = True
+    decide.REJECT_IDENTITY = True
     assert run()["decision"] == "aprobada"
     assert run(v=None)["decision"] == "revision_manual"
     # cualquier "dudoso" -> manual
