@@ -32,6 +32,8 @@ android {
         buildConfigField("String", "JWT_SECRET", "\"${localProps.getProperty("validat3b.jwtSecret", "")}\"")
     }
 
+    sourceSets["main"].assets.srcDir(rootProject.file("../audit-demo/demo-data"))
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -55,6 +57,11 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
