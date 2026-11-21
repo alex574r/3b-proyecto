@@ -1,6 +1,6 @@
 import java.util.Properties
 
-// URL de la API y secreto del JWT salen de local.properties (ignorado por git), no del código
+// URL de la API y secreto del JWT salen de local.properties (ignorado por git), no del cÃ³digo
 val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
@@ -28,7 +28,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "API_URL", "\"${localProps.getProperty("validat3b.apiUrl", "https://api.jamp.digital")}\"")
-        // shortcut: el secreto queda dentro del APK; sirve para esta demo, en producción emitirlo desde un login
+        // shortcut: el secreto queda dentro del APK; sirve para esta demo, en producciÃ³n emitirlo desde un login
         buildConfigField("String", "JWT_SECRET", "\"${localProps.getProperty("validat3b.jwtSecret", "")}\"")
     }
 
@@ -55,6 +55,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.camera:camera-camera2:1.5.3")
+    implementation("androidx.camera:camera-lifecycle:1.5.3")
+    implementation("androidx.camera:camera-view:1.5.3")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
