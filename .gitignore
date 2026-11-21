@@ -6,5 +6,6 @@ salida*/
 # Python
 __pycache__/
 *.pyc
-# Secretos
+# Secretos (el .env de validat3b es de pruebas y sí se versiona; ver README)
 .env
+!validat3b/.env
