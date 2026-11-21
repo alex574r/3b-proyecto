@@ -76,11 +76,14 @@ object ValidatApi {
         }
     }
 
-    /** /validar con los campos de la captura y token fijo opcional (X-Api-Key). Devuelve el JSON oficial tal cual. */
+    /** /validar con los campos de la captura y token fijo opcional (X-Api-Key). Devuelve el registro de la captura. */
     fun validar(baseUrl: String, token: String, fields: JSONObject, photos: Map<String, ByteArray>): String =
         post(baseUrl, "/validar", fields, photos, if (token.isBlank()) emptyMap() else mapOf("X-Api-Key" to token))
 
-    /** /analizar: solo fotos (fields opcional). Devuelve {"resultado": JSON oficial, "datos_detectados": {...}}. */
+    /**
+     * /analizar: solo fotos (fields opcional). Devuelve un registro con la forma de capturas.json (capture_id ...
+     * decision_esperada, motivo_rechazo) seguido del detalle del motor (precio_descuento, reason_code, explicacion...).
+     */
     fun analizar(baseUrl: String, fields: JSONObject, photos: Map<String, ByteArray>): String =
         post(
             baseUrl, "/analizar", fields, photos,

@@ -1,12 +1,14 @@
 """API HTTP del motor: python server.py [--host 127.0.0.1] [--port 8000] [--no-llm]
 
 GET  /health
+GET  /imagenes/<capture_id>_<facade|product|shelf>.jpg   fotos guardadas (misma autenticación que los POST)
 POST /validar   JSON: campos de capturas.json (capture_store_name, capture_barcode, capture_price, capture_brand,
                 product_name, unit_product, unit_quantity_product, capture_id opcional)
                 + facade_b64, product_b64, shelf_b64 (JPEG en base64)
-                -> JSON oficial de la captura (siempre válido; ante error interno, revision_manual).
 POST /analizar  Solo las 3 fotos son obligatorias; todos los demás campos son opcionales y, si vienen, mandan.
-                -> {"resultado": <JSON oficial + precio_descuento>, "datos_detectados": <registro estilo capturas.json>}
+Ambos POST -> un registro con la forma de capturas.json (capture_id ... decision_esperada, motivo_rechazo) y después el
+detalle del motor (precio_descuento, confidence_score, reason_code, validaciones, explicacion...). Siempre 200 con
+registro válido; ante error interno, revision_manual / ERROR_PROCESAMIENTO. Las fotos quedan en salida_api/imagenes/.
 Auth (si hay VALIDAT3B_TOKEN o VALIDAT3B_JWT_SECRET definidos; si no, abierto): header X-Api-Key con el token fijo,
 o Authorization: Bearer <JWT HS256 firmado con VALIDAT3B_JWT_SECRET, con exp a lo sumo 15 min adelante>.
 La llave de Foundry vive solo aquí (FOUNDRY_API_KEY); la app nunca la ve.
@@ -19,7 +21,6 @@ import json
 import os
 import re
 import sys
-import tempfile
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,6 +33,8 @@ from engine.local_checks import analyze
 MAX_BODY = 40 * 1024 * 1024
 PHOTOS = ("facade", "product", "shelf")
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+IMG_RE = re.compile(r"^/imagenes/([A-Za-z0-9_-]{1,64}_(?:facade|product|shelf)\.jpg)$")
+HOST_RE = re.compile(r"^[A-Za-z0-9.:-]{1,255}$")
 CATALOGO = Path(os.environ.get("VALIDAT3B_CATALOGO") or
                 Path(__file__).resolve().parent.parent / "Validat3B_desarrollo_metadatos" / "catalogo_productos.csv")
 
@@ -75,28 +78,30 @@ def verify_jwt(token, secret, now=None, leeway=30, max_ttl=900):
         return False
 
 
-def _with_photos(photos, fn):
-    with tempfile.TemporaryDirectory() as d:
-        paths = {}
-        for k, data in photos.items():
-            paths[k] = Path(d) / f"{k}.jpg"
-            paths[k].write_bytes(data)
-        return fn(paths)
+def guardar_fotos(cid, photos, img_dir):
+    """Guarda las 3 fotos como <capture_id>_<foto>.jpg (un capture_id repetido las reemplaza)."""
+    img_dir.mkdir(parents=True, exist_ok=True)
+    paths = {k: img_dir / f"{cid}_{k}.jpg" for k in photos}
+    for k, data in photos.items():
+        paths[k].write_bytes(data)
+    return paths
 
 
-def run_capture(cap, photos, client, usage_log):
-    def go(paths):
-        local = analyze(paths)
-        return local, None if client is None else vision.extract(cap, paths, client, usage_log)
-    local, vis = _with_photos(photos, go)
-    return decide.decide(cap, local, vis)
+def run_capture(cap, paths, client, usage_log, catalog):
+    """/validar: compara contra los datos esperados que mandó el cliente. -> (resultado oficial, datos)."""
+    local = analyze(paths)
+    vis = None if client is None else vision.extract(cap, paths, client, usage_log)
+    datos = auto.detectar(cap, local["barcodes"], vis, catalog)
+    # el rango del catálogo valida el precio de descuento, salvo que el cliente mande el suyo
+    rango = {"min_product_price": datos["min_product_price"], "max_product_price": datos["max_product_price"]}
+    res = decide.decide({**rango, **cap}, local, vis)
+    datos["precio_descuento"] = res["precio_descuento"]
+    return res, datos
 
 
-def run_analizar(cap, photos, client, usage_log, catalog):
-    def go(paths):
-        local = analyze(paths)
-        return local, None if client is None else vision.extract(cap, paths, client, usage_log, auto=True)
-    local, vis = _with_photos(photos, go)
+def run_analizar(cap, paths, client, usage_log, catalog):
+    local = analyze(paths)
+    vis = None if client is None else vision.extract(cap, paths, client, usage_log, auto=True)
     return auto.completar(cap, local, vis, catalog)
 
 
@@ -106,6 +111,7 @@ class Handler(BaseHTTPRequestHandler):
     jwt_secret = os.environ.get("VALIDAT3B_JWT_SECRET")
     catalog = {}
     usage_log = Path("salida_api") / "usage.jsonl"
+    img_dir = Path("salida_api") / "imagenes"
 
     def _send(self, code, obj):
         data = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
@@ -124,11 +130,31 @@ class Handler(BaseHTTPRequestHandler):
         bearer = self.headers.get("Authorization", "")
         return bool(self.jwt_secret and bearer.startswith("Bearer ") and verify_jwt(bearer[7:], self.jwt_secret))
 
+    def _base_url(self):
+        """URL pública con la que llegó la petición (detrás de Cloudflare: https://api.jamp.digital)."""
+        proto = "https" if self.headers.get("X-Forwarded-Proto") == "https" else "http"
+        host = self.headers.get("Host", "")
+        return f"{proto}://{host if HOST_RE.match(host) else 'localhost'}"
+
     def do_GET(self):
         if self.path == "/health":
-            self._send(200, {"status": "ok", "llm": self.client is not None})
-        else:
-            self._send(404, {"error": "no encontrado"})
+            return self._send(200, {"status": "ok", "llm": self.client is not None})
+        m = IMG_RE.match(self.path)
+        if not m:
+            return self._send(404, {"error": "no encontrado"})
+        if not self._authorized():
+            return self._send(401, {"error": "token inválido"})
+        f = self.img_dir / m.group(1)
+        if not f.is_file():
+            return self._send(404, {"error": "no encontrado"})
+        data = f.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")  # el contenido lo subió un cliente: que no se interprete
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         modo_auto = {"/validar": False, "/analizar": True}.get(self.path)
@@ -146,19 +172,21 @@ class Handler(BaseHTTPRequestHandler):
             cap, photos = parse(json.loads(self.rfile.read(n)), require_store=not modo_auto)
         except ValueError as e:  # incluye JSONDecodeError y base64 inválido
             return self._send(400, {"error": str(e)})
+        cid, base = cap["capture_id"], self._base_url()
+        fotos = {k: (f"imagenes/{cid}_{k}.jpg", f"{base}/imagenes/{cid}_{k}.jpg") for k in PHOTOS}
+        guardadas = False
         try:
-            if modo_auto:
-                res, datos = run_analizar(cap, photos, self.client, self.usage_log, self.catalog)
-                out = {"resultado": res, "datos_detectados": datos}
-            else:
-                res = out = run_capture(cap, photos, self.client, self.usage_log)
+            paths = guardar_fotos(cid, photos, self.img_dir)
+            guardadas = True
+            res, datos = (run_analizar if modo_auto else run_capture)(cap, paths, self.client, self.usage_log, self.catalog)
             errs = output.validate(res)
             if errs:
                 raise ValueError(f"salida inválida: {errs}")
-        except Exception as e:  # noqa: BLE001 - nunca devolver algo que no sea el JSON oficial
-            res = output.fallback(cap["capture_id"], f"{type(e).__name__}: {e}")
-            out = {"resultado": res, "datos_detectados": {}} if modo_auto else res
-        self._send(200, out)
+        except Exception as e:  # noqa: BLE001 - nunca devolver algo que no sea un registro válido
+            res = output.fallback(cid, f"{type(e).__name__}: {e}")
+            datos = auto.detectar(cap, [], None, self.catalog)
+            fotos = fotos if guardadas else {}
+        self._send(200, auto.registro(datos, res, fotos))
 
 
 def main():

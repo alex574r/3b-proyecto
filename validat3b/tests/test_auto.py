@@ -60,6 +60,21 @@ def main():
     assert res["precio_descuento"] == d["precio_descuento"] == 12.0
     res, d = auto.completar(dict(cap, capture_price=30.0), LOCAL, dict(VIS, precio_etiqueta=40.0, precio_descuento=30.0), catalog)
     assert res["precio_descuento"] is None and d["precio_descuento"] is None and res["reason_code"] == "EVIDENCIA_AMBIGUA"
+    # registro de respuesta: llaves y orden de capturas.json, códigos como número, detalle del motor al final
+    res, d = auto.completar(cap, LOCAL, VIS, catalog)
+    fotos = {k: (f"imagenes/APP-1_{k}.jpg", f"https://x/imagenes/APP-1_{k}.jpg") for k in ("facade", "product", "shelf")}
+    r = auto.registro(d, res, fotos)
+    assert list(r)[:len(auto.REGISTRO)] == list(auto.REGISTRO) and list(r)[-1] == "fuente_producto"
+    assert r["capture_barcode"] == 763331024755 and r["product_barcode"] == 763331024755 and r["id_product"] == 5055
+    assert r["facade_file"] == "imagenes/APP-1_facade.jpg" and r["shelf_url"] == "https://x/imagenes/APP-1_shelf.jpg"
+    assert r["decision_esperada"] == res["decision"] and r["motivo_rechazo"] == ""
+    assert output.validate(auto.oficial(r)) == [] and auto.oficial(r)["decision"] == res["decision"]
+    res, d = auto.completar(cap, LOCAL, dict(VIS, criterios=dict(CRIT, cercania="falla")), catalog)
+    r = auto.registro(d, res, {})
+    assert r["decision_esperada"] == "rechazada" and r["motivo_rechazo"] == "Capturas lejanas" and r["facade_url"] is None
+    r = auto.registro(auto.detectar({"capture_id": "X"}, [], None, {}), output.fallback("X", "error"), {})
+    assert r["capture_barcode"] is None and r["reason_code"] == "ERROR_PROCESAMIENTO" and output.validate(auto.oficial(r)) == []
+
     # sin catálogo, los campos del SKU quedan en null
     _, d = auto.completar(cap, LOCAL, VIS, {})
     assert d["id_product"] is None and d["product_price"] is None and d["product_group"] is None

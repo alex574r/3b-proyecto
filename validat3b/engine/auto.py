@@ -38,24 +38,22 @@ def load_catalog(path):
         return {_digits(r["product_barcode"]).lstrip("0"): r for r in csv.DictReader(f) if _digits(r.get("product_barcode"))}
 
 
-def completar(cap, local, vis, catalog):
-    """(resultado oficial, datos detectados). cap trae solo lo que escribió el usuario (todo opcional)."""
+def detectar(cap, barcodes, vis, catalog):
+    """Datos de la captura con la estructura de capturas.json: lo que escribió el usuario manda; si falta, lo leído en
+    las fotos; los datos del SKU salen del catálogo cuando el código está en él."""
     vis = vis or {}
     d = vis.get("datos") or {}
     # Las fotos suelen traer varios códigos (caja, etiqueta, empaque): se prefiere el que está en el catálogo
-    cands = [c for c in (*map(_code, local["barcodes"]), _code(d.get("codigo_barras"))) if c]
+    cands = [c for c in (*map(_code, barcodes), _code(d.get("codigo_barras"))) if c]
     code = cap.get("capture_barcode") or next((c for c in cands if c.lstrip("0") in catalog), cands[0] if cands else None)
-    cat = catalog.get(code.lstrip("0")) if code else None
-    price = cap.get("capture_price") if cap.get("capture_price") is not None else _num(vis.get("precio_etiqueta"))
-    cat = cat or {}
+    cat = (catalog.get(code.lstrip("0")) if code else None) or {}
     date = cap.get("capture_date")
-    # Misma estructura que un registro de capturas.json: lo leído en las fotos + los datos del SKU desde el catálogo
-    datos = {
+    return {
         "capture_id": cap["capture_id"],
         "capture_store_name": cap.get("capture_store_name") or vis.get("cadena_visible"),
         "capture_date": date if isinstance(date, str) and date else time.strftime("%Y-%m-%d %H:%M:%S"),
         "capture_barcode": code,
-        "capture_price": price,
+        "capture_price": cap.get("capture_price") if cap.get("capture_price") is not None else _num(vis.get("precio_etiqueta")),
         "capture_brand": cap.get("capture_brand") or d.get("marca"),
         "id_product": int(_digits(cat.get("id_product"))) if _digits(cat.get("id_product")) else None,
         "product_name": cap.get("product_name") or cat.get("product_name") or d.get("producto"),
@@ -71,8 +69,14 @@ def completar(cap, local, vis, catalog):
         "fuente_producto": ("usuario" if cap.get("product_name") else "catalogo" if cat
                             else "foto" if d.get("producto") else None),
     }
+
+
+def completar(cap, local, vis, catalog):
+    """(resultado oficial, datos detectados). cap trae solo lo que escribió el usuario (todo opcional)."""
+    datos = detectar(cap, local["barcodes"], vis, catalog)
+    code = datos["capture_barcode"]
     # El rango del catálogo viaja a decide para validar el precio de descuento
-    full = dict(cap, capture_store_name=datos["capture_store_name"], capture_barcode=code, capture_price=price,
+    full = dict(cap, capture_store_name=datos["capture_store_name"], capture_barcode=code, capture_price=datos["capture_price"],
                 min_product_price=datos["min_product_price"], max_product_price=datos["max_product_price"])
     # Si el código no es uno de los decodificados (p. ej. se leyó del texto impreso o salió del catálogo), el JSON no debe
     # reportar "falla" por los códigos de otras cajas: el elegido por el modo automático cuenta como leído de las fotos,
@@ -82,3 +86,46 @@ def completar(cap, local, vis, catalog):
     res = decide.decide(full, local, vis or None)
     datos["precio_descuento"] = res["precio_descuento"]
     return res, datos
+
+
+# Llaves y orden exactos de un registro de capturas.json; el detalle del motor va después
+REGISTRO = ("capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price", "capture_brand",
+            "id_product", "product_name", "product_barcode", "product_price", "min_product_price", "max_product_price",
+            "unit_product", "unit_quantity_product", "product_group", "product_line",
+            "facade_file", "facade_url", "product_file", "product_url", "shelf_file", "shelf_url",
+            "decision_esperada", "motivo_rechazo")
+# Texto de motivo_rechazo como lo registran los analistas en capturas.json (los 3 primeros son literales del set de dev)
+MOTIVOS = {
+    "IMAGEN_BORROSA": "Capturas borrosas", "CAPTURA_LEJANA": "Capturas lejanas",
+    "DESCRIPCION_INCOMPLETA": "Descripción de producto incompleta",
+    "FOTO_DE_PANTALLA": "Foto tomada a la pantalla de otro celular",
+    "PRODUCTO_NO_COINCIDE": "Producto no coincide con la descripción", "FACHADA_INCORRECTA": "Fachada incorrecta",
+    "SIN_ETIQUETA_PRECIO": "No hay etiqueta de precio",
+}
+OFICIAL = ("confidence_score", "reason_code", "validaciones", "precio_detectado", "precio_descuento",
+           "codigo_barras_detectado", "explicacion")
+
+
+def _int(s):
+    d = _digits(s)
+    return int(d) if d else None
+
+
+def registro(datos, res, fotos):
+    """Respuesta de la API: registro con la forma de capturas.json + detalle del motor al final.
+    fotos: {"facade"|"product"|"shelf": (ruta relativa, url)}. Los códigos de barras van como número, igual que en el set."""
+    r = {k: datos.get(k) for k in REGISTRO}
+    r["capture_id"] = res["capture_id"]
+    r["capture_barcode"], r["product_barcode"] = _int(datos.get("capture_barcode")), _int(datos.get("product_barcode"))
+    for k in ("facade", "product", "shelf"):
+        r[f"{k}_file"], r[f"{k}_url"] = fotos.get(k, (None, None))
+    r["decision_esperada"] = res["decision"]
+    r["motivo_rechazo"] = MOTIVOS.get(res["reason_code"], res["reason_code"]) if res["decision"] == "rechazada" else ""
+    r.update({k: res[k] for k in OFICIAL})
+    r["fuente_producto"] = datos.get("fuente_producto")
+    return r
+
+
+def oficial(r):
+    """El JSON oficial del reto contenido en un registro (para validarlo con output.validate)."""
+    return {"capture_id": r["capture_id"], "decision": r["decision_esperada"], **{k: r[k] for k in OFICIAL}}

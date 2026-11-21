@@ -186,7 +186,8 @@ fun FotoSlot(label: String, uri: Uri?, modifier: Modifier = Modifier, onPick: (U
 fun ResultadoCard(r: JSONObject) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val decision = r.getString("decision")
+            // registro nuevo (decision_esperada) o JSON oficial guardado en el historial por versiones anteriores (decision)
+            val decision = r.optString("decision_esperada").ifEmpty { r.getString("decision") }
             val (icon, tint) = when (decision) {
                 "aprobada" -> Icons.Default.CheckCircle to MaterialTheme.colorScheme.primary
                 "rechazada" -> Icons.Default.Close to MaterialTheme.colorScheme.error

@@ -44,11 +44,16 @@ assert {
 }
 
 tests {
-  test("devuelve el JSON oficial", function () {
-    expect(res.body).to.have.all.keys(
-      "capture_id", "decision", "confidence_score", "reason_code", "validaciones",
-      "precio_detectado", "precio_descuento", "codigo_barras_detectado", "explicacion"
-    );
+  test("devuelve el registro de captura (forma de capturas.json) y el detalle del motor", function () {
+    expect(Object.keys(res.body)).to.deep.equal([
+      "capture_id", "capture_store_name", "capture_date", "capture_barcode", "capture_price", "capture_brand",
+      "id_product", "product_name", "product_barcode", "product_price", "min_product_price", "max_product_price",
+      "unit_product", "unit_quantity_product", "product_group", "product_line",
+      "facade_file", "facade_url", "product_file", "product_url", "shelf_file", "shelf_url",
+      "decision_esperada", "motivo_rechazo",
+      "confidence_score", "reason_code", "validaciones", "precio_detectado", "precio_descuento",
+      "codigo_barras_detectado", "explicacion", "fuente_producto"
+    ]);
   });
 }
 

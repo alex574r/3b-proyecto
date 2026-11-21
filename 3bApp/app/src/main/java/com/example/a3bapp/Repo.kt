@@ -124,16 +124,15 @@ object CapturaRepo {
                 "facade" to File(c.fachada).readBytes(), "product" to File(c.producto).readBytes(),
                 "shelf" to File(c.etiqueta).readBytes(),
             )
-            val env = JSONObject(ValidatApi.analizar(apiUrl(ctx), c.campos(), fotos))
-            val r = env.getJSONObject("resultado")
-            val d = env.optJSONObject("datos_detectados") ?: JSONObject()
+            // La respuesta es un registro con la forma de capturas.json (+ detalle del motor al final)
+            val r = JSONObject(ValidatApi.analizar(apiUrl(ctx), c.campos(), fotos))
             dao.actualizar(
                 c.copy(
                     estado = Estado.ENVIADA, intentos = previos + 1, error = null,
-                    tienda = d.str("capture_store_name"), barcode = d.str("capture_barcode"), precio = d.str("capture_price"),
-                    marca = d.str("capture_brand"), nombre = d.str("product_name"),
-                    contenido = d.str("unit_quantity_product"), unidad = d.str("unit_product"),
-                    decision = r.getString("decision"), motivo = r.getString("reason_code"),
+                    tienda = r.str("capture_store_name"), barcode = r.str("capture_barcode"), precio = r.str("capture_price"),
+                    marca = r.str("capture_brand"), nombre = r.str("product_name"),
+                    contenido = r.str("unit_quantity_product"), unidad = r.str("unit_product"),
+                    decision = r.getString("decision_esperada"), motivo = r.getString("reason_code"),
                     resultadoJson = r.toString(2).replace("\\/", "/"), // org.json escapa "/"; el JSON sigue siendo válido
                 ),
             )

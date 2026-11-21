@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -15,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from PIL import Image  # noqa: E402
 
 import server  # noqa: E402
-from engine import output  # noqa: E402
+from engine import auto, output  # noqa: E402
 from test_auto import jwt  # noqa: E402
 
 
@@ -36,11 +37,20 @@ def call(port, path, body=None, headers=None):
         return e.code, json.loads(e.read())
 
 
+def raw(port, path, headers=None):
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers or {})) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
 def main():
     server.Handler.client = None
     server.Handler.token = None
     server.Handler.jwt_secret = None
     server.Handler.catalog = {}
+    server.Handler.img_dir = Path(tempfile.mkdtemp()) / "imagenes"  # no ensuciar salida_api con fotos de prueba
     srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -52,12 +62,24 @@ def main():
     assert call(port, "/nada")[0] == 404
 
     code, res = call(port, "/validar", ok)
-    assert code == 200 and output.validate(res) == [], res
-    assert res["decision"] == "revision_manual" and res["reason_code"] == "SIN_ANALISIS_VISUAL"
-    assert res["capture_id"].startswith("APP-")
+    assert code == 200 and output.validate(auto.oficial(res)) == [], res
+    # registro con la forma de capturas.json, en el mismo orden, y el detalle del motor al final
+    assert list(res)[:len(auto.REGISTRO)] == list(auto.REGISTRO), list(res)
+    assert res["decision_esperada"] == "revision_manual" and res["reason_code"] == "SIN_ANALISIS_VISUAL"
+    assert res["motivo_rechazo"] == "" and res["capture_barcode"] == 7501 and res["capture_price"] == 10.5
+    assert res["capture_id"].startswith("APP-") and res["capture_store_name"] == "Soriana"
 
     code, res = call(port, "/validar", dict(ok, capture_id="CAP-1"))
     assert res["capture_id"] == "CAP-1"
+    # las fotos quedan guardadas y se sirven en la URL del registro
+    assert res["facade_file"] == "imagenes/CAP-1_facade.jpg"
+    assert res["shelf_url"] == f"http://127.0.0.1:{port}/imagenes/CAP-1_shelf.jpg", res["shelf_url"]
+    assert raw(port, "/imagenes/CAP-1_product.jpg") == (200, base64.b64decode(img))
+    assert raw(port, "/imagenes/NO-EXISTE_product.jpg")[0] == 404
+    assert raw(port, "/imagenes/../server.py")[0] == 404 and raw(port, "/imagenes/CAP-1_otra.jpg")[0] == 404
+    # detrás de Cloudflare la URL sale con https y el dominio público
+    code, res = call(port, "/validar", dict(ok, capture_id="CAP-2"), {"Host": "api.jamp.digital", "X-Forwarded-Proto": "https"})
+    assert res["facade_url"] == "https://api.jamp.digital/imagenes/CAP-2_facade.jpg"
 
     # entradas inválidas -> 400, nunca 500
     assert call(port, "/validar", {k: v for k, v in ok.items() if k != "shelf_b64"})[0] == 400
@@ -67,29 +89,31 @@ def main():
     assert call(port, "/validar", dict(ok, capture_store_name=""))[0] == 400
     assert call(port, "/validar", [1, 2])[0] == 400
 
-    # imagen corrupta -> JSON oficial de error, no caída
+    # imagen corrupta -> registro con ERROR_PROCESAMIENTO, no caída
     code, res = call(port, "/validar", dict(ok, facade_b64=base64.b64encode(b"basura").decode(),
                                               product_b64=base64.b64encode(b"basura").decode()))
-    assert code == 200 and res["reason_code"] == "ERROR_PROCESAMIENTO" and output.validate(res) == [], res
+    assert code == 200 and res["reason_code"] == "ERROR_PROCESAMIENTO" and output.validate(auto.oficial(res)) == [], res
+    assert list(res)[:len(auto.REGISTRO)] == list(auto.REGISTRO) and res["capture_store_name"] == "Soriana"
 
-    # token
+    # token (también protege las fotos)
     server.Handler.token = "s3cret"
     assert call(port, "/validar", ok)[0] == 401
     assert call(port, "/validar", ok, {"X-Api-Key": "mal"})[0] == 401
     assert call(port, "/validar", ok, {"X-Api-Key": "s3cret"})[0] == 200
+    assert raw(port, "/imagenes/CAP-1_product.jpg")[0] == 401
+    assert raw(port, "/imagenes/CAP-1_product.jpg", {"X-Api-Key": "s3cret"})[0] == 200
     server.Handler.token = None
 
-    # /analizar: solo fotos; sin Haiku no inventa datos, y lo que manda el usuario aparece en datos_detectados
+    # /analizar: solo fotos; mismo registro. Sin Haiku no inventa datos; lo que manda el usuario aparece tal cual
     solo = {"facade_b64": img, "product_b64": img, "shelf_b64": img}
     code, res = call(port, "/analizar", solo)
-    assert code == 200 and set(res) == {"resultado", "datos_detectados"}, res
-    assert output.validate(res["resultado"]) == [] and res["datos_detectados"]["capture_store_name"] is None
-    assert res["resultado"]["precio_descuento"] is None and "precio_descuento" in res["datos_detectados"]
+    assert code == 200 and list(res)[:len(auto.REGISTRO)] == list(auto.REGISTRO), res
+    assert output.validate(auto.oficial(res)) == [] and res["capture_store_name"] is None and res["precio_descuento"] is None
     assert call(port, "/analizar", {k: v for k, v in solo.items() if k != "shelf_b64"})[0] == 400
     code, res = call(port, "/analizar", dict(solo, capture_store_name="Neto", capture_price="14"))
-    assert res["datos_detectados"]["capture_store_name"] == "Neto" and res["datos_detectados"]["capture_price"] == 14.0
+    assert res["capture_store_name"] == "Neto" and res["capture_price"] == 14.0
     code, res = call(port, "/analizar", dict(solo, product_b64=base64.b64encode(b"basura").decode()))
-    assert code == 200 and res["resultado"]["reason_code"] == "ERROR_PROCESAMIENTO" and res["datos_detectados"] == {}
+    assert code == 200 and res["reason_code"] == "ERROR_PROCESAMIENTO" and res["decision_esperada"] == "revision_manual"
 
     # JWT (y el token fijo sigue valiendo si ambos están configurados)
     server.Handler.jwt_secret = "clave-jwt"

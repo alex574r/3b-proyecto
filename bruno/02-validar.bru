@@ -34,13 +34,16 @@ body:json {
 assert {
   res.status: eq 200
   res.body.capture_id: eq BRUNO-001
-  res.body.decision: isString
+  res.body.decision_esperada: isString
   res.body.reason_code: isString
 }
 
 tests {
-  test("decision es una de las tres permitidas", function () {
-    expect(["aprobada", "rechazada", "revision_manual"]).to.include(res.body.decision);
+  test("decision_esperada es una de las tres permitidas", function () {
+    expect(["aprobada", "rechazada", "revision_manual"]).to.include(res.body.decision_esperada);
+  });
+  test("motivo_rechazo solo si se rechaza", function () {
+    expect(res.body.motivo_rechazo === "").to.equal(res.body.decision_esperada !== "rechazada");
   });
   test("validaciones trae las 4 claves", function () {
     expect(res.body.validaciones).to.have.all.keys("tienda_fachada", "producto", "codigo_barras", "evidencia_precio");
