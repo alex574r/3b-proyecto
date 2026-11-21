@@ -70,9 +70,9 @@ fun FotoButton(label: String, uri: Uri?, modifier: Modifier = Modifier, onPick: 
 fun ValidarScreen(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    // localhost funciona con `adb reverse tcp:8000 tcp:8000` (celular por USB o emulador); sin eso, usa la IP del PC
-    // (servidor con --host 0.0.0.0) o 10.0.2.2 en el emulador
-    var url by rememberSaveable { mutableStateOf("http://localhost:8000") }
+    // Por defecto, la API pública vía túnel de Cloudflare (validat3b/iniciar_publico.ps1). Para pruebas locales:
+    // http://localhost:8000 con `adb reverse tcp:8000 tcp:8000`, o 10.0.2.2:8000 en el emulador
+    var url by rememberSaveable { mutableStateOf("https://api.jamp.digital") }
     var token by rememberSaveable { mutableStateOf("") }
     var tienda by rememberSaveable { mutableStateOf("") }
     var barcode by rememberSaveable { mutableStateOf("") }
@@ -94,7 +94,7 @@ fun ValidarScreen(modifier: Modifier = Modifier) {
     ) {
         Text("Validar captura", style = MaterialTheme.typography.headlineSmall)
         Campo("URL del servidor", url, { url = it })
-        Campo("Token (opcional)", token, { token = it })
+        Campo("Token (X-Api-Key)", token, { token = it })
         Campo("Tienda / cadena", tienda, { tienda = it })
         Campo("Código de barras", barcode, { barcode = it })
         Campo("Precio capturado", precio, { precio = it })

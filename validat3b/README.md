@@ -44,6 +44,15 @@ La app Android está en `C:\Users\alex5\AndroidStudioProjects\3bApp` (pantalla `
 - En dev la etiqueta está casi totalmente correlacionada con hora y tienda de captura (lotes). No se usa como
   señal: no es criterio de analista y probablemente no se repite en el set ciego.
 
+## API pública (https://api.jamp.digital)
+Túnel de Cloudflare `validat3b` → `http://127.0.0.1:8000` (config en `%USERPROFILE%\.cloudflared\config.yml`).
+```powershell
+$env:FOUNDRY_API_KEY = "<api-key>"
+.\iniciar_publico.ps1          # -NoLlm para probar sin gastar tokens; Ctrl+C detiene API y túnel
+```
+La primera vez genera `validat3b\.env` con `VALIDAT3B_TOKEN` (ignorado por git). La API exige ese valor en el
+header `X-Api-Key`; en la app va en el campo "Token". La PC debe estar encendida y el script corriendo.
+
 ## Provisional (reemplazar al bajar el material oficial)
 - `engine/output.py`: lista de `reason_code`, valores de `validaciones` (`ok/falla/no_evaluable`) y esquema.
 - `engine/decide.py`: umbrales (`BLUR_MIN`) y confianzas fijas; falta `DESCRIPCION_INCOMPLETA` y calibrar `p`.
