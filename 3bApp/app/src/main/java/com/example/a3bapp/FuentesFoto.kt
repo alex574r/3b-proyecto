@@ -23,6 +23,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -45,6 +47,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -135,6 +138,11 @@ fun CamaraPantalla(modelo: CapturaUiModel) {
     }
 
     EncabezadoCaptura(if (modelo.reemplazo) "Edición individual" else "Cámara", modelo::volver, acciones = {
+        // Fuera de la zona desplazable: junto al disparador aunque el texto del sistema esté ampliado.
+        if (permiso) {
+            Text("Sujeta el teléfono sin moverlo.", Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        }
         Acciones(
             if (permiso) "Tomar foto" else "Permitir cámara",
             principalHabilitada = !tomando && (!permiso || captura != null),
@@ -175,11 +183,13 @@ fun CamaraPantalla(modelo: CapturaUiModel) {
         Titular(
             null,
             if (modelo.reemplazo) "Reemplazar ${evidencia.titulo.lowercase()}" else "Encuadra la ${if (evidencia == Evidencia.Producto) "foto de producto" else evidencia.titulo.lowercase()}",
-            evidencia.instruccion,
+            // Sin permiso se explica qué buscar; con cámara, la indicación vive sobre la vista previa.
+            if (permiso) null else evidencia.instruccion,
         )
         if (permiso) {
-            Encuadre(evidencia.objetivo, "CÁMARA", evidencia) { AndroidView(factory = { vista }, modifier = Modifier.fillMaxSize()) }
-            Text("Mantén el teléfono quieto al tomar la foto.", style = MaterialTheme.typography.bodySmall)
+            Encuadre(evidencia.objetivo, "CÁMARA", evidencia, evidencia.indicaciones) {
+                AndroidView(factory = { vista }, modifier = Modifier.fillMaxSize())
+            }
             if (modelo.reemplazo) {
                 PanelAviso(R.drawable.figma_edit, "Las otras fotos se conservan", "Toma una nueva foto para sustituir solamente esta evidencia.")
             } else {

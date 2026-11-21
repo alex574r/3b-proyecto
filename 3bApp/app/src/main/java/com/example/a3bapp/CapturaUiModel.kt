@@ -24,10 +24,15 @@ enum class Evidencia(
     val objetivo: String,
     val cuidado: String,
     val ejemplo: String,
+    /** Indicación de distancia fija sobre la vista previa: cuándo acercarse y cuándo alejarse, usando el marco. */
+    val indicaciones: List<String>,
 ) {
-    Fachada("Fachada", "Incluye el nombre o logotipo de la tienda y el acceso principal.", "Nombre o logo de la tienda", "Evita que el acceso o el rótulo queden cortados.", "fachada.png"),
-    Producto("Producto", "Acércate hasta que el empaque llene el encuadre. Evita fotos de pantalla.", "Frente del empaque", "Mantén el nombre y la presentación visibles.", "producto.png"),
-    Etiqueta("Etiqueta", "Acércate hasta que el precio y la descripción quepan juntos en el marco.", "Precio + descripción", "Evita reflejos. Revisa que se vea el precio unitario.", "etiqueta.png"),
+    Fachada("Fachada", "Incluye el nombre o logotipo de la tienda y el acceso principal.", "Nombre o logo de la tienda", "Evita que el acceso o el rótulo queden cortados.", "fachada.png",
+        listOf("Incluye la entrada y el letrero.", "Si el nombre queda fuera, aléjate.")),
+    Producto("Producto", "Acércate hasta que el empaque llene el encuadre. Evita fotos de pantalla.", "Frente del empaque", "Mantén el nombre y la presentación visibles.", "producto.png",
+        listOf("Acércate hasta llenar el marco.", "Si se corta el empaque, aléjate.")),
+    Etiqueta("Etiqueta", "Acércate hasta que el precio y la descripción quepan juntos en el marco.", "Precio + descripción", "Evita reflejos. Revisa que se vea el precio unitario.", "etiqueta.png",
+        listOf("Si el precio se ve pequeño, acércate.", "Si se corta el precio o la descripción, aléjate.")),
 }
 
 enum class CampoCaptura(val clave: String, val titulo: String) {

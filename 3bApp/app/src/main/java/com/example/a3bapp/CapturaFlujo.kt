@@ -185,6 +185,7 @@ fun Encuadre(
     guia: String? = null,
     rotulo: String? = null,
     evidencia: Evidencia? = null,
+    indicaciones: List<String> = emptyList(),
     imagen: @Composable BoxScope.() -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().aspectRatio(1.23f).clip(MaterialTheme.shapes.medium).background(Wash)) {
@@ -206,7 +207,17 @@ fun Encuadre(
                     .background(Ink).padding(horizontal = 22.dp, vertical = 6.dp), color = Paper, style = MaterialTheme.typography.bodySmall)
             }
         }
-        rotulo?.let {
+        if (indicaciones.isNotEmpty()) {
+            // Fija en la parte superior de la vista previa: deja libre el centro del marco y no depende del desplazamiento.
+            Column(
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(10.dp).clip(MaterialTheme.shapes.small)
+                    .background(Ink.copy(alpha = 0.82f)).padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                indicaciones.forEach { Text(it, color = Paper, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        rotulo?.takeIf { indicaciones.isEmpty() }?.let {
             Text(it, Modifier.align(Alignment.TopStart).padding(12.dp).clip(MaterialTheme.shapes.small)
                 .background(Ink).padding(horizontal = 8.dp, vertical = 5.dp), color = Paper, style = MaterialTheme.typography.labelSmall)
         }
