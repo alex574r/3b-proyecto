@@ -28,6 +28,11 @@
   th { background: #f1f5f9; }
   .note { color: var(--muted); font-size: 7.8pt; }
   footer { margin-top: 2.5mm; padding-top: 1.2mm; border-top: 1px solid var(--line); color: var(--muted); font-size: 7.6pt; }
+  .page2 { break-before: page; }
+  .uc { display: grid; grid-template-columns: 118mm 1fr; gap: 4mm; align-items: start; break-inside: avoid; }
+  .page2 h2 { break-after: avoid; }
+  .page2 img.capas { width: 168mm; margin: 1mm auto 1.2mm; }
+  .uc table { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -109,6 +114,46 @@
   </div>
 
   <footer>Costo por captura: acierto 0 · revisión manual 1 · rechazar una válida 3 · aprobar una inválida 10. Diagramas: <code>arquitectura.svg</code> y <code>flujo_decision.svg</code>.</footer>
+</div>
+
+<div class="page page2">
+  <header>
+    <h1>Validat3B · Arquitectura y casos de uso</h1>
+    <p>Anexo de la ficha técnica</p>
+  </header>
+
+  <h2>8 · Capas del sistema e interacción</h2>
+  <img class="capas" src="capas_sistema.svg" alt="Diagrama de capas del sistema">
+  <ol>
+    <li><b>Clientes:</b> app Android (Compose, Room y WorkManager), Bruno, ventana tkinter y <code>run.py</code>. Solo la app y Bruno usan la API;
+    la ventana y <code>run.py</code> llaman al motor directo, sin red.</li>
+    <li><b>Red:</b> <code>api.jamp.digital</code> entra por Cloudflare y baja por un túnel saliente (<code>cloudflared</code>) hasta el equipo;
+    no se abren puertos.</li>
+    <li><b>API (<code>server.py</code>):</b> autentica con token fijo o JWT HS256, valida el cuerpo, guarda fotos y un JSON por captura y llama
+    al motor. La app nunca ve la llave de Foundry.</li>
+    <li><b>Motor (<code>engine/</code>):</b> chequeos locales → una llamada a Haiku → catálogo → reglas → JSON validado.</li>
+    <li><b>Datos y servicios:</b> disco local, Azure AI Foundry (única IA externa) y catálogo de 135 SKU.</li>
+  </ol>
+  <p><b>Sin conexión:</b> la app guarda la captura y sus fotos en Room y WorkManager la reenvía al volver la red (también con timeout o 5xx).
+  Un 4xx pasa a <i>error</i> y se reintenta a mano.</p>
+
+  <h2>9 · Casos de uso</h2>
+  <div class="uc">
+    <img src="casos_de_uso.svg" alt="Diagrama de casos de uso">
+    <div>
+      <table>
+        <tr><th>Actor</th><th>Casos de uso</th></tr>
+        <tr><td>Capturista (app)</td><td>tomar o elegir 3 fotos, analizar con autollenado, consultar historial; reenviar pendientes (automático)</td></tr>
+        <tr><td>Analista (ventana)</td><td>analizar una carpeta de fotos y exportar un JSON consolidado</td></tr>
+        <tr><td>Integrador (Bruno)</td><td>validar con datos esperados (<code>/validar</code>) y comprobar <code>/health</code></td></tr>
+        <tr><td>Evaluador (CLI)</td><td>JSON oficial del set ciego (<code>run.py</code>) y costo en desarrollo (<code>evaluate.py</code>)</td></tr>
+        <tr><td>Azure AI Foundry</td><td>extraer los criterios de las fotos</td></tr>
+      </table>
+      <p class="note">Todo caso que analiza una captura <i>incluye</i> «Evaluar captura»: chequeos locales, extracción con IA, catálogo y reglas.</p>
+    </div>
+  </div>
+
+  <footer>Diagramas: <code>capas_sistema.svg</code> y <code>casos_de_uso.svg</code>.</footer>
 </div>
 </body>
 </html>
