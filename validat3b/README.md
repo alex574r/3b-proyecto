@@ -44,7 +44,7 @@ La app Android está en `C:\Users\alex5\AndroidStudioProjects\3bApp` (pantalla `
 - En dev la etiqueta está casi totalmente correlacionada con hora y tienda de captura (lotes). No se usa como
   señal: no es criterio de analista y probablemente no se repite en el set ciego.
 
-## API pública (https://api.jamp.digital)
+## API pública (https://api.jamp.digital) — contrato completo en [API.md](API.md)
 Túnel de Cloudflare `validat3b` → `http://127.0.0.1:8000` (config en `%USERPROFILE%\.cloudflared\config.yml`).
 ```powershell
 $env:FOUNDRY_API_KEY = "<api-key>"
