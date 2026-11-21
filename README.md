@@ -28,3 +28,19 @@ python3 -m http.server 8123 --bind 127.0.0.1 --directory audit-demo
 ```
 
 La portada conecta con `https://api.jamp.digital`. Introduce el token de auditoría que configure el operador. Las capturas recibidas en `POST /analizar` aparecen en el portal al actualizar la bandeja (también se refresca cada 15 segundos con la pestaña visible). Al abrir una captura se consultan sus fotos originales. Las resoluciones del auditor se guardan en la API. **Ver demo** abre por separado los ejemplos de Balam. [Configuración de la API y prueba de campo](INTEGRACION_IMAGENES.md).
+
+## Arrancar la versión integrada
+
+Desde la raíz, instala las dependencias con Python 3.10 o superior.
+
+```powershell
+python -m pip install -r validat3b/requirements.txt
+```
+
+En el equipo que opera el túnel, conserva el archivo privado `validat3b/.env` y el directorio `validat3b/salida_api` antes de cambiar de rama. Una rama anterior puede tener el archivo de entorno bajo control de versiones y Git puede retirarlo del directorio al cambiar a `dev`. Guarda la configuración fuera del checkout y restáurala en la rama actual. Configura `VALIDAT3B_TOKEN`, `VALIDAT3B_JWT_SECRET`, la clave del endpoint asignado `FOUNDRY_API_KEY` y, si se usa acceso independiente para los auditores, `VALIDAT3B_AUDIT_TOKEN`.
+
+En Windows, desde la raíz de `dev`, el operador arranca el servicio con `.\validat3b\iniciar_publico.ps1`. Ese script carga `.env` y abre el túnel existente. Al activar esta versión, [el portal del equipo](https://api.jamp.digital/portal/) y `POST /analizar` se sirven en el mismo dominio. Comprueba que `/health` devuelve `llm: true`, que `/portal/` abre y que la bandeja autenticada contiene una captura conocida. El despliegue requiere actualizar ese proceso en el servidor.
+
+Para desarrollo local se puede ejecutar `python validat3b/server.py` con las credenciales configuradas en el entorno del proceso. Su portal está en `http://127.0.0.1:8000/portal/`. El modo `--no-llm` permite probar el flujo sin gastar llamadas. La ventana de escritorio se abre con `python validat3b/gui.py`. La colección [Bruno](bruno/README.md), los [comandos del motor](validat3b/README.md) y el [contrato HTTP](validat3b/API.md) documentan las demás formas de probarlo.
+
+Para mostrar una captura real con el teléfono conectado, sigue el [guion de presentación con el POCO](documentacion/presentacion_poco.md).
