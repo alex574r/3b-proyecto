@@ -1,0 +1,6 @@
+# Versiones con las que se ejecutó el piloto (Python 3.14.2, Windows 11)
+opencv-python-headless>=4.13   # probado con opencv 4.13.0
+pillow>=12.1                   # probado con 12.1.0
+numpy>=2.4                     # probado con 2.4.2
+# Solo para --remoto (Azure AI Foundry, mismo cliente que validat3b/engine/vision.py):
+# anthropic>=0.40

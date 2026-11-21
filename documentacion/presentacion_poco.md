@@ -2,6 +2,29 @@
 
 El capturista puede seguir recorriendo la tienda mientras el servidor analiza las fotos. El auditor abre el mismo identificador en la web para comprobar qué evidencia respaldó la decisión.
 
+## Orden para los tres minutos ante el jurado
+
+| Tiempo | Qué mostrar | Qué decir |
+|---|---|---|
+| 0:00–0:25 | Las tres fotos originales del primer caso, en orden de fachada, producto y etiqueta. | «Necesitamos saber de qué tienda viene el precio, a qué presentación pertenece y cuánto marca la etiqueta». |
+| 0:25–0:55 | **Comenzar captura** en el POCO. Elige las tres imágenes del mismo caso en la galería y pulsa **Guardar captura**. | «El capturista puede seguir con el siguiente producto mientras se analiza el anterior». |
+| 0:55–1:25 | La etiqueta de anaquel en la muestra local. | «Si el recorte conserva el importe y la descripción, el selector puede ampliarlo y mejorar el contraste. Cuando hay dudas, conserva la foto completa. El modelo recibe una vista de la etiqueta por solicitud». |
+| 1:25–2:10 | En **Historial**, lee el ID de la captura enviada. Abre ese mismo folio en el portal y muestra la etiqueta y el motivo del dictamen. | «Leer bien el precio resuelve una parte. Si la tienda no se puede confirmar, el caso llega al auditor». |
+| 2:10–2:40 | Abre un caso rechazado en **No aprobadas** y alterna entre **Producto** y **Etiqueta**. | «Aquí el encuadre es lejano. El sistema deja el precio vacío y señala qué evidencia falló». |
+| 2:40–3:00 | Vuelve al resumen del portal. | «Para 3B, el beneficio es que el equipo de campo sigue avanzando y el auditor puede comprobar cada decisión antes de usar ese precio». |
+
+## Preparar las fotos originales para mostrar sin internet
+
+El [generador de la muestra](preparar_muestra.py) lee los JPEG directamente del ZIP oficial y los incorpora a un HTML que puedes abrir con doble clic. Cada caso necesita el ID del dataset, un título y el JSON real de la API que corresponda a esas fotos. El JSON del portal USB se guarda en `%LOCALAPPDATA%\Validat3B\portal-usb\SERIE\json\APP-ID.json`. Verifica que la captura se hizo con las tres imágenes del ID elegido.
+
+Desde la raíz del repositorio, sustituye los valores entre comillas por los de tu ensayo.
+
+```powershell
+python documentacion/preparar_muestra.py "ruta\Validat3B_desarrollo_imagenes.zip" --caso "ID_DATASET_1" "Primer producto" "ruta\primer_registro.json" --caso "ID_DATASET_2" "Segundo producto" "ruta\segundo_registro.json"
+```
+
+Abre `salida_presentacion/muestra.html` antes de la exposición. Las seis fotos y los dictámenes se ven sin red. El enlace de cada folio abre el portal de la laptop cuando está encendido.
+
 ## Antes de presentar
 
 1. Mantén el POCO con internet y conectado a la laptop por USB. Abre la app instalada y deja el portal autenticado en una pestaña visible. Con una buena captura y una rechazada ya abiertas en otras pestañas puedes explicar los dos resultados aunque falle la red.

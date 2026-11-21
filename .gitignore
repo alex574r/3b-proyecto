@@ -1,6 +1,10 @@
 # Datos de 3B: solo se usan dentro del reto, no se suben a otros servicios
 Validat3B_*/
 Validat3B_*.zip
+/imagenes/
+/capturas.csv
+/capturas.json
+/catalogo_productos.csv
 # Salidas generadas (contienen respuestas sobre los datos de 3B)
 salida*/
 # Python

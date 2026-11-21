@@ -44,3 +44,5 @@ En Windows, desde la raíz de `dev`, el operador arranca el servicio con `.\vali
 Para desarrollo local se puede ejecutar `python validat3b/server.py` con las credenciales configuradas en el entorno del proceso. Su portal está en `http://127.0.0.1:8000/portal/`. El modo `--no-llm` permite probar el flujo sin gastar llamadas. La ventana de escritorio se abre con `python validat3b/gui.py`. La colección [Bruno](bruno/README.md), los [comandos del motor](validat3b/README.md) y el [contrato HTTP](validat3b/API.md) documentan las demás formas de probarlo.
 
 Para mostrar una captura real con el teléfono conectado, sigue el [guion de presentación con el POCO](documentacion/presentacion_poco.md).
+
+El [piloto de mejora de imágenes](experimentos/piloto/README.md) contiene el selector inicial, la segunda versión y sus pruebas de regresión. El [generador de la muestra](documentacion/preparar_muestra.py) prepara las fotos originales del equipo para la exposición sin subirlas al repositorio.
