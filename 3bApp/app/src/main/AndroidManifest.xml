@@ -5,11 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- shortcut: http en claro para el servidor local de desarrollo; en producciÃ³n usar HTTPS y quitar esto -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- shortcut: http en claro para el servidor local de desarrollo; en producción usar HTTPS y quitar esto -->
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
@@ -20,7 +21,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme._3bApp">
-        <activity android:name=".CamaraGuiada" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,16 +33,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Para que la cÃ¡mara del telÃ©fono guarde la foto en la cachÃ© de la app -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
     </application>
 
 </manifest>

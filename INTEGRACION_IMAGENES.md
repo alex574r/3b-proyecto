@@ -1,19 +1,19 @@
 # Integrar la cámara guiada y la preparación de etiquetas
 
-La rama `Leonardo` incluye dos cambios que se pueden desplegar por separado. Android ayuda a encuadrar y guarda la captura para que la persona siga su recorrido. El servidor elige la vista de la etiqueta que recibirá el modelo. La app y el backend siguen usando el contrato HTTP existente.
+La rama `integracion/validat3b` reúne el backend de `main`, el selector de `Leonardo` y la interfaz Android de `feat/figma-validat3b` de Balam. Android ayuda a encuadrar y guarda la captura para que la persona siga su recorrido. El servidor elige la vista de la etiqueta que recibirá el modelo. La app y el backend siguen usando el contrato HTTP existente.
 
 ## Integración en la rama del equipo
 
-1. Actualizar la rama de destino y abrir un pull request desde `Leonardo`. Al preparar la entrega, GitHub solo tenía `main`. La base usada fue `bdc8d1f`, que incluye precio de oferta, motivo de rechazo y datos del SKU en el historial.
+1. Revisar el cambio conjunto contra `main`. Desplegar el backend y generar la APK desde el mismo commit de integración. El portal `audit-demo/` conserva los casos de demostración del diseño. La app Android usa `POST /analizar` para capturas reales.
 2. En el backend, instalar las dependencias de `validat3b/requirements.txt` en el entorno habitual. Desplegar juntos `validat3b/engine/etiqueta.py` y `vision.py` y reiniciar el servicio. La configuración de Foundry sigue en el servidor. Para las opciones de arranque y catálogo, consultar [el README del motor](validat3b/README.md).
 3. En Android, sincronizar Gradle desde `3bApp/`, conservar la configuración local de URL y autenticación del entorno, y ejecutar `.\gradlew.bat assembleDebug` en Windows. El APK de prueba queda en `app/build/outputs/apk/debug/app-debug.apk`.
 4. Probar en un celular del equipo antes de distribuir el APK. Para revertir, volver a desplegar la versión anterior del componente afectado. La mejora no introduce columnas nuevas en Room ni cambios en el esquema del JSON.
 
 ## Qué pasa al tomar una foto
 
-En **Tomar foto**, `CamaraGuiada.kt` solicita permiso de cámara y muestra la vista previa con una plantilla fija para fachada, producto o etiqueta. La indicación de acercarse busca que quepan juntos el importe y la descripción. «Mantén el teléfono quieto» permanece visible antes del disparo. La plantilla es una guía visual y la app conserva la opción de galería.
+En **Tomar foto**, la pantalla de cámara en `FuentesFoto.kt` solicita permiso de cámara y muestra la vista previa con una plantilla fija para fachada, producto o etiqueta. La indicación de acercarse busca que quepan juntos el importe y la descripción. «Mantén el teléfono quieto» permanece visible antes del disparo. La plantilla es una guía visual y la app conserva la opción de galería.
 
-Al pulsar **Guardar captura**, `Repo.kt` guarda fotos y metadatos localmente y programa el envío mediante WorkManager. El formulario queda disponible después del guardado local. El historial conserva el estado y recibe la respuesta cuando termina el procesamiento. Una captura pendiente puede esperar a que vuelva la red aunque el usuario salga de la pantalla.
+Al pulsar **Guardar captura**, `Repo.kt` guarda fotos y metadatos localmente y programa el envío mediante WorkManager. Al terminar el guardado local la app vuelve al inicio con la confirmación. **Comenzar captura** inicia otro registro mientras WorkManager envía el anterior. Antes de guardar, las tres miniaturas permiten reemplazar una foto. El historial conserva el estado y recibe la respuesta cuando termina el procesamiento. Una captura pendiente puede esperar a que vuelva la red aunque el usuario salga de la pantalla.
 
 ## Qué hace el backend
 

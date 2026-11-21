@@ -1,5 +1,7 @@
 # 3b-proyecto
 
+[Guía de integración de la cámara, la cola y el selector de etiquetas](INTEGRACION_IMAGENES.md)
+
 Motor de validación de capturas de precio (reto Validat3B).
 
 - [validat3b/](validat3b/): código del motor, instrucciones de uso en su README.
@@ -7,3 +9,22 @@ Motor de validación de capturas de precio (reto Validat3B).
 - [PROPUESTA_SOLUCION.md](PROPUESTA_SOLUCION.md): análisis de los datos y diseño de la solución.
 
 Los datos del reto (`Validat3B_desarrollo_*`) no se incluyen en el repositorio; colócalos en esta carpeta para ejecutar.
+
+## Interfaz de Validat3B
+
+La app Android usa cámara y galería integradas. El selector de Android también está disponible para elegir una imagen sin conceder acceso a la galería. Desde **Casos de demostración** se pueden abrir los siete resultados de ejemplo y simular un error de precio o de red. Las capturas reales y sus reintentos siguen disponibles en **Historial**.
+
+Para compilar y ejecutar las pruebas unitarias con Android SDK 36:
+
+```bash
+cd 3bApp
+bash gradlew :app:assembleDebug :app:testDebugUnitTest
+```
+
+Para abrir el portal web de auditoría en el navegador, inicia este servidor desde la raíz del repositorio y abre [el portal local](http://127.0.0.1:8123/):
+
+```bash
+python3 -m http.server 8123 --bind 127.0.0.1 --directory audit-demo
+```
+
+El portal comparte los casos de demostración con Android. Las resoluciones de auditoría se guardan en la sesión de la pestaña y se conservan al recargar. Los siete casos de la bandeja son ejemplos del conjunto resumido en el tablero. El portal funciona con archivos locales y las resoluciones simuladas se pueden reiniciar cerrando la pestaña y abriendo una nueva.
